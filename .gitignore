@@ -7,4 +7,4 @@ build-host/
 *.o
 *.d
 .DS_Store
-
+/*.plist
