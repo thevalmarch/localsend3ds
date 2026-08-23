@@ -1,0 +1,10 @@
+build/
+build-host/
+*.3dsx
+*.elf
+*.map
+*.smdh
+*.o
+*.d
+.DS_Store
+
