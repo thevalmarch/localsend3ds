@@ -6,7 +6,7 @@ validation pending. Research was refreshed on 2026-08-24.
 ## Host toolchain audit
 
 The development Mac has Xcode command-line tools, GNU Make, Git, Python, and
-Homebrew. It does **not** currently have the Nintendo 3DS toolchain:
+Homebrew. It does **not** currently have a native Nintendo 3DS toolchain:
 
 - `DEVKITPRO` and `DEVKITARM` are unset;
 - `arm-none-eabi-gcc`, `3dsxtool`, `smdhtool`, `dkp-pacman`, and `3dslink` are
@@ -14,9 +14,12 @@ Homebrew. It does **not** currently have the Nintendo 3DS toolchain:
 - `/opt/devkitpro` is absent.
 
 The supported remediation is the official devkitPro macOS package installer,
-followed by `sudo dkp-pacman -S 3ds-dev`. A custom compiler toolchain is not an
-acceptable substitute. `scripts/check-toolchain.sh` captures the checks. The
-current source therefore has host-test evidence but not a local `.3dsx` build.
+followed by `sudo dkp-pacman -S 3ds-dev`. This requires administrator
+authentication, which was unavailable to the automated shell. A custom compiler
+toolchain was not used. As an official fallback, the project was built in
+`devkitpro/devkitarm:latest` with devkitARM GCC 16.1.0. The resulting 3DSX was
+successfully decoded by `3dsxdump` into 43 code, 7 rodata, 2 data, and 3 BSS
+pages. `scripts/check-toolchain.sh` captures the native-host checks.
 
 ## Networking
 
@@ -144,4 +147,3 @@ Sources: [LocalSend protocol v2.2](https://github.com/localsend/protocol),
 [devkitPro setup](https://devkitpro.org/wiki/Getting_Started/devkitARM),
 [libctru](https://github.com/devkitPro/libctru), and
 [devkitPro 3DS mbedTLS package](https://github.com/devkitPro/pacman-packages/tree/master/3ds/mbedtls).
-
