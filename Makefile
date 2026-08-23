@@ -18,7 +18,7 @@ APP_DESCRIPTION := Unofficial LocalSend client for Nintendo 3DS
 APP_AUTHOR  := LocalSend3DS contributors
 
 ARCH        := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
-CFLAGS      := -g -Wall -Wextra -Werror -O2 -mword-relocations \
+CFLAGS      := -g -Wall -Wextra -Werror -Wstack-usage=4096 -O2 -mword-relocations \
                -ffunction-sections $(ARCH)
 CFLAGS      += $(INCLUDE) -D__3DS__ -std=gnu11
 ASFLAGS     := -g $(ARCH)
