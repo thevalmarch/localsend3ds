@@ -46,6 +46,29 @@ If discovery fails, capture UDP 53317 and TCP 53317 traffic on the Mac. Separate
 "HTTP response rejected", and "HTTP mode refused" rather than treating all as
 one failure.
 
+## On-device discovery log
+
+Each launch replaces `sdmc:/3ds/LocalSend/logs/latest.log`; output is capped at
+256 KiB and flushed line-by-line. Copy this file from the SD card after a failed
+test. It records public peer aliases/IPs and protocol metadata, but not the local
+fingerprint, private key material, or transfer tokens.
+
+Read the sequence in order:
+
+1. `network: SOC ready` proves SOC initialization and local IPv4 lookup.
+2. `discovery: joined multicast group` proves UDP bind and membership setup.
+3. Three `announcement sent` entries prove the startup burst reached `sendto`.
+4. `peer announcement` proves inbound multicast and JSON parsing.
+5. `http: accepted connection` proves the Mac reached TCP port 53317.
+6. `http: request ... /register` proves a complete HTTP header/body arrived.
+7. `register accepted` and `register response ready` prove protocol parsing and
+   response generation; `response sent` proves the socket write completed.
+
+Warnings include the peer IP, stage, errno where applicable, bounded byte
+counts, and parser rejection reason. The raw JSON and fingerprints are not
+logged.
+
+
 ## Receive-MVP hardware tests
 
 For every size (1 KiB, 1 MiB, 10 MiB, 100 MiB, 500 MiB, then larger where
@@ -54,4 +77,3 @@ available memory, and SD free bytes. Test accept, reject, local cancel, remote
 cancel, peer loss, lid close, SD full/write error, collision, malicious names,
 wrong size, early close, invalid token/IP, and intentional checksum corruption.
 Only a byte-identical final file with no misleading `.part` result is success.
-

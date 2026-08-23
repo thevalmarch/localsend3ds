@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "config.h"
+#include "logger.h"
 
 static const char *protocol_name(LsProtocol protocol) {
     return protocol == LS_PROTOCOL_HTTPS ? "HTTPS" : "HTTP";
@@ -35,6 +36,7 @@ static void render_top(LsApp *app) {
     printf("TX %u  RX %u  bad %u  HTTP %u\n\n",
            app->discovery.sent_packets, app->discovery.received_packets,
            app->discovery.rejected_packets, app->http_server.handled_requests);
+    printf("Log: %s\n\n", ls_log_is_ready() ? LS3DS_LOG_PATH : "unavailable");
     if (selected == NULL) {
         printf("Searching for LocalSend devices...\n\n");
         printf("Open LocalSend on another device\nand press Y to announce again.\n");
@@ -74,4 +76,3 @@ void ls_ui_render(LsApp *app) {
     render_top(app);
     render_bottom(app);
 }
-

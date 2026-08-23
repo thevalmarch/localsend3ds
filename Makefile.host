@@ -4,7 +4,7 @@ HOST_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -O1 -g \
                -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude
 HOST_SOURCES := source/localsend_protocol.c source/device_registry.c source/http_server.c \
                 source/discovery.c
-HOST_TEST_SOURCES := tests/test_main.c
+HOST_TEST_SOURCES := tests/test_main.c tests/logger_stub.c
 HOST_TEST := $(HOST_BUILD)/localsend3ds_tests
 
 .PHONY: test clean

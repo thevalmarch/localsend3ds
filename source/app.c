@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "identity.h"
+#include "logger.h"
 #include "ui.h"
 
 static void stop_network_services(LsApp *app) {
@@ -15,6 +16,7 @@ static void stop_network_services(LsApp *app) {
 }
 
 static bool start_network_services(LsApp *app, uint64_t now_ms) {
+    LS_LOGI("app", "starting network services");
     stop_network_services(app);
     if (!ls_network_init(&app->network)) {
         app->state = LS_APP_NETWORK_ERROR;
@@ -22,6 +24,7 @@ static bool start_network_services(LsApp *app, uint64_t now_ms) {
                        "Wi-Fi init failed (Result %08lX, errno %d)",
                        (unsigned long)app->network.last_result,
                        app->network.last_errno);
+        LS_LOGE("app", "%s", app->status_message);
         return false;
     }
     if (!ls_http_server_start(&app->http_server)) {
@@ -30,6 +33,7 @@ static bool start_network_services(LsApp *app, uint64_t now_ms) {
         app->state = LS_APP_NETWORK_ERROR;
         (void)snprintf(app->status_message, sizeof(app->status_message),
                        "HTTP server failed (errno %d)", error_number);
+        LS_LOGE("app", "%s", app->status_message);
         return false;
     }
     if (!ls_discovery_start(&app->discovery, app->network.local_ip, now_ms)) {
@@ -38,12 +42,14 @@ static bool start_network_services(LsApp *app, uint64_t now_ms) {
         app->state = LS_APP_NETWORK_ERROR;
         (void)snprintf(app->status_message, sizeof(app->status_message),
                        "Multicast failed (errno %d)", error_number);
+        LS_LOGE("app", "%s", app->status_message);
         return false;
     }
     app->state = LS_APP_DISCOVERY;
     (void)snprintf(app->status_message, sizeof(app->status_message),
                    "Listening on %s:%u", app->network.local_ip,
                    (unsigned)LS3DS_HTTP_PORT);
+    LS_LOGI("app", "%s", app->status_message);
     return true;
 }
 
@@ -59,6 +65,9 @@ bool ls_app_init(LsApp *app) {
     gfxInitDefault();
     consoleInit(GFX_TOP, &app->top_console);
     consoleInit(GFX_BOTTOM, &app->bottom_console);
+    (void)ls_log_init();
+    LS_LOGI("app", "%s %s starting; LocalSend protocol %s",
+            LS3DS_APP_NAME, LS3DS_APP_VERSION, LS3DS_PROTOCOL_VERSION);
     app->running = true;
     app->state = LS_APP_BOOTING;
     ls_registry_init(&app->registry);
@@ -66,6 +75,7 @@ bool ls_app_init(LsApp *app) {
         app->state = LS_APP_NETWORK_ERROR;
         (void)snprintf(app->status_message, sizeof(app->status_message),
                        "Secure identity generation failed");
+        LS_LOGE("app", "%s", app->status_message);
         return true;
     }
     (void)start_network_services(app, osGetTime());
@@ -82,6 +92,7 @@ static void handle_input(LsApp *app, u32 keys, uint64_t now_ms) {
             ls_discovery_announce(&app->discovery, now_ms);
             (void)snprintf(app->status_message, sizeof(app->status_message),
                            "Discovery announcement queued");
+            LS_LOGI("app", "manual discovery refresh requested");
         } else if (app->identity.fingerprint[0] != '\0') {
             (void)start_network_services(app, now_ms);
         }
@@ -107,12 +118,16 @@ void ls_app_run(LsApp *app) {
         now_ms = osGetTime();
         handle_input(app, keys, now_ms);
         if (app->state == LS_APP_DISCOVERY) {
+            size_t removed;
             ls_discovery_update(&app->discovery, &app->identity,
                                 &app->registry, now_ms);
             ls_http_server_update(&app->http_server, &app->identity,
                                   &app->registry, now_ms);
-            (void)ls_registry_prune(&app->registry, now_ms,
-                                    LS3DS_DEVICE_TIMEOUT_MS);
+            removed = ls_registry_prune(&app->registry, now_ms,
+                                         LS3DS_DEVICE_TIMEOUT_MS);
+            if (removed > 0) {
+                LS_LOGI("registry", "expired %u inactive peer(s)", (unsigned)removed);
+            }
             if (app->registry.count == 0) {
                 app->selected_device = 0;
             } else if (app->selected_device >= app->registry.count) {
@@ -128,7 +143,9 @@ void ls_app_run(LsApp *app) {
 
 void ls_app_shutdown(LsApp *app) {
     if (app == NULL) return;
+    LS_LOGI("app", "shutdown requested");
     stop_network_services(app);
+    ls_log_shutdown();
     gfxExit();
     app->running = false;
 }

@@ -12,6 +12,8 @@ Current code includes:
 - typed announcement parsing and a fixed-capacity device registry;
 - a nonblocking HTTP server with `/api/localsend/v2/register` and `/info`;
 - cryptographically random per-launch HTTP identity via the 3DS PS service;
+- capped per-launch discovery diagnostics at
+  `sdmc:/3ds/LocalSend/logs/latest.log`;
 - host-side parser and registry tests.
 
 The `/register` server is part of the discovery milestone because current
@@ -67,9 +69,10 @@ launch transferred `.cia`, `.3dsx`, or other executable files automatically.
 
 ## Status and scope
 
-This repository does not claim real-device compatibility yet. The initial code
-has host-side test coverage, but a `.3dsx` build and official-client discovery
-still require the devkitPro toolchain and physical 3DS validation. See the
+This repository does not claim real-device compatibility yet. The current code
+cross-compiles successfully with devkitARM 16.1.0 and produces
+`LocalSend3DS.3dsx`; official-client discovery still requires physical 3DS
+validation. See the
 [compatibility matrix](docs/compatibility.md) for verified versus planned work.
 
 LocalSend3DS is licensed under the MIT License. LocalSend is a separate project;

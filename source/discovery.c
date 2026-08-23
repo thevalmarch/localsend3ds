@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "logger.h"
 #include "localsend_protocol.h"
 
 static const uint64_t burst_delays_ms[] = {100, 500, 2000};
@@ -32,12 +33,22 @@ bool ls_discovery_start(LsDiscovery *discovery, const char *local_ip,
     discovery->socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (discovery->socket_fd < 0) {
         discovery->last_errno = errno;
+        LS_LOGE("discovery", "UDP socket failed: errno=%d (%s)", errno,
+                strerror(errno));
         return false;
     }
     if (setsockopt(discovery->socket_fd, SOL_SOCKET, SO_REUSEADDR,
-                   &reuse, sizeof(reuse)) != 0 ||
-        !set_nonblocking(discovery->socket_fd)) {
+                   &reuse, sizeof(reuse)) != 0) {
         discovery->last_errno = errno;
+        LS_LOGE("discovery", "SO_REUSEADDR failed: errno=%d (%s)",
+                errno, strerror(errno));
+        ls_discovery_stop(discovery);
+        return false;
+    }
+    if (!set_nonblocking(discovery->socket_fd)) {
+        discovery->last_errno = errno;
+        LS_LOGE("discovery", "nonblocking UDP setup failed: errno=%d (%s)",
+                errno, strerror(errno));
         ls_discovery_stop(discovery);
         return false;
     }
@@ -49,6 +60,8 @@ bool ls_discovery_start(LsDiscovery *discovery, const char *local_ip,
     if (bind(discovery->socket_fd, (const struct sockaddr *)&bind_address,
              sizeof(bind_address)) != 0) {
         discovery->last_errno = errno;
+        LS_LOGE("discovery", "UDP bind 0.0.0.0:%u failed: errno=%d (%s)",
+                (unsigned)LS3DS_MULTICAST_PORT, errno, strerror(errno));
         ls_discovery_stop(discovery);
         return false;
     }
@@ -56,12 +69,27 @@ bool ls_discovery_start(LsDiscovery *discovery, const char *local_ip,
     memset(&membership, 0, sizeof(membership));
     if (inet_pton(AF_INET, LS3DS_MULTICAST_ADDRESS,
                   &membership.imr_multiaddr) != 1 ||
-        inet_pton(AF_INET, local_ip, &membership.imr_interface) != 1 ||
-        setsockopt(discovery->socket_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                   &membership, sizeof(membership)) != 0 ||
-        setsockopt(discovery->socket_fd, IPPROTO_IP, IP_MULTICAST_TTL,
+        inet_pton(AF_INET, local_ip, &membership.imr_interface) != 1) {
+        discovery->last_errno = EINVAL;
+        LS_LOGE("discovery", "invalid multicast/interface address; group=%s interface=%s",
+                LS3DS_MULTICAST_ADDRESS, local_ip);
+        ls_discovery_stop(discovery);
+        return false;
+    }
+    if (setsockopt(discovery->socket_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                   &membership, sizeof(membership)) != 0) {
+        discovery->last_errno = errno;
+        LS_LOGE("discovery", "IP_ADD_MEMBERSHIP failed; group=%s port=%u "
+                "interface=%s errno=%d (%s)", LS3DS_MULTICAST_ADDRESS,
+                (unsigned)LS3DS_MULTICAST_PORT, local_ip, errno, strerror(errno));
+        ls_discovery_stop(discovery);
+        return false;
+    }
+    if (setsockopt(discovery->socket_fd, IPPROTO_IP, IP_MULTICAST_TTL,
                    &ttl, sizeof(ttl)) != 0) {
         discovery->last_errno = errno;
+        LS_LOGE("discovery", "IP_MULTICAST_TTL failed: errno=%d (%s)",
+                errno, strerror(errno));
         ls_discovery_stop(discovery);
         return false;
     }
@@ -72,6 +100,8 @@ bool ls_discovery_start(LsDiscovery *discovery, const char *local_ip,
     (void)inet_pton(AF_INET, LS3DS_MULTICAST_ADDRESS,
                     &discovery->multicast_target.sin_addr);
     discovery->running = true;
+    LS_LOGI("discovery", "joined multicast group=%s port=%u interface=%s ttl=1",
+            LS3DS_MULTICAST_ADDRESS, (unsigned)LS3DS_MULTICAST_PORT, local_ip);
     discovery->next_periodic_ms = now_ms + LS3DS_PERIODIC_ANNOUNCE_MS;
     ls_discovery_announce(discovery, now_ms);
     return true;
@@ -82,6 +112,9 @@ void ls_discovery_stop(LsDiscovery *discovery) {
         return;
     }
     if (discovery->socket_fd >= 0) {
+        LS_LOGI("discovery", "closing UDP socket; tx=%u rx=%u rejected=%u",
+                discovery->sent_packets, discovery->received_packets,
+                discovery->rejected_packets);
         close(discovery->socket_fd);
     }
     discovery->socket_fd = -1;
@@ -95,6 +128,7 @@ void ls_discovery_announce(LsDiscovery *discovery, uint64_t now_ms) {
     discovery->burst_index = 0;
     discovery->next_burst_ms = now_ms + burst_delays_ms[0];
     discovery->next_periodic_ms = now_ms + LS3DS_PERIODIC_ANNOUNCE_MS;
+    LS_LOGD("discovery", "announcement burst scheduled");
 }
 
 static void send_due_announcement(LsDiscovery *discovery,
@@ -110,6 +144,7 @@ static void send_due_announcement(LsDiscovery *discovery,
     }
     if (!ls_protocol_write_announcement(identity, payload, sizeof(payload), &length)) {
         ++discovery->rejected_packets;
+        LS_LOGE("discovery", "could not serialize local announcement");
         discovery->burst_index = (unsigned)(sizeof(burst_delays_ms) /
                                              sizeof(burst_delays_ms[0]));
         return;
@@ -119,8 +154,13 @@ static void send_due_announcement(LsDiscovery *discovery,
                   sizeof(discovery->multicast_target));
     if (sent == (ssize_t)length) {
         ++discovery->sent_packets;
+        LS_LOGD("discovery", "announcement sent; bytes=%u burst=%u",
+                (unsigned)length, discovery->burst_index + 1);
     } else {
         discovery->last_errno = errno;
+        LS_LOGW("discovery", "announcement send failed; sent=%ld expected=%u "
+                "errno=%d (%s)", (long)sent, (unsigned)length, errno,
+                strerror(errno));
     }
     ++discovery->burst_index;
     if (discovery->burst_index < sizeof(burst_delays_ms) / sizeof(burst_delays_ms[0])) {
@@ -146,23 +186,41 @@ static void receive_announcements(LsDiscovery *discovery,
         if (received < 0) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 discovery->last_errno = errno;
+                LS_LOGW("discovery", "UDP receive failed: errno=%d (%s)",
+                        errno, strerror(errno));
             }
             break;
         }
         if (received == 0 || received > LS3DS_MAX_DATAGRAM_SIZE ||
             inet_ntop(AF_INET, &source.sin_addr, source_ip, sizeof(source_ip)) == NULL) {
             ++discovery->rejected_packets;
+            LS_LOGW("discovery", "rejected datagram; bytes=%ld source-valid=%s",
+                    (long)received, received > 0 ? "unknown" : "no");
             continue;
         }
         ++discovery->received_packets;
         payload[received] = '\0';
         result = ls_protocol_parse_device(payload, (size_t)received, source_ip, &peer);
-        if (result != LS_PARSE_OK ||
-            strcmp(peer.fingerprint, identity->fingerprint) == 0) {
+        if (result != LS_PARSE_OK) {
             ++discovery->rejected_packets;
+            LS_LOGW("discovery", "rejected announcement from %s; bytes=%ld reason=%s",
+                    source_ip, (long)received,
+                    ls_protocol_parse_result_string(result));
             continue;
         }
-        (void)ls_registry_upsert(registry, &peer, now_ms);
+        if (strcmp(peer.fingerprint, identity->fingerprint) == 0) {
+            LS_LOGD("discovery", "ignored looped-back local announcement from %s",
+                    source_ip);
+            continue;
+        }
+        {
+            LsRegistryResult registry_result = ls_registry_upsert(registry, &peer, now_ms);
+            LS_LOGI("discovery", "peer announcement; alias=%.64s ip=%s port=%u "
+                    "protocol=%s announce=%s registry=%d", peer.alias, source_ip,
+                    (unsigned)peer.port,
+                    peer.protocol == LS_PROTOCOL_HTTPS ? "https" : "http",
+                    peer.announce ? "true" : "false", (int)registry_result);
+        }
     }
 }
 

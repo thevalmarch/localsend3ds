@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "logger.h"
 
 static const char *hardware_model(void) {
     u8 model = 0xff;
@@ -49,11 +50,14 @@ bool ls_identity_create(LsDevice *identity) {
 
     result = psInit();
     if (R_FAILED(result)) {
+        LS_LOGE("identity", "psInit failed: result=0x%08lX", (unsigned long)result);
         return false;
     }
     result = PS_GenerateRandomBytes(random_bytes, sizeof(random_bytes));
     psExit();
     if (R_FAILED(result)) {
+        LS_LOGE("identity", "secure random generation failed: result=0x%08lX",
+                (unsigned long)result);
         return false;
     }
     for (i = 0; i < sizeof(random_bytes); ++i) {
@@ -61,6 +65,7 @@ bool ls_identity_create(LsDevice *identity) {
                        sizeof(identity->fingerprint) - i * 2,
                        "%02X", random_bytes[i]);
     }
+    LS_LOGI("identity", "identity ready; model=%s protocol=http port=%u",
+            identity->device_model, (unsigned)identity->port);
     return true;
 }
-

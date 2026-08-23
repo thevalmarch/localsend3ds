@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "logger.h"
 #include "localsend_protocol.h"
 
 typedef struct {
@@ -55,11 +56,15 @@ bool ls_http_server_start_on_port(LsHttpServer *server, uint16_t port) {
     server->listen_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server->listen_fd < 0) {
         server->last_errno = errno;
+        LS_LOGE("http", "TCP socket failed: errno=%d (%s)", errno,
+                strerror(errno));
         return false;
     }
     if (setsockopt(server->listen_fd, SOL_SOCKET, SO_REUSEADDR,
                    &reuse, sizeof(reuse)) != 0 || !set_nonblocking(server->listen_fd)) {
         server->last_errno = errno;
+        LS_LOGE("http", "TCP socket configuration failed: errno=%d (%s)",
+                errno, strerror(errno));
         ls_http_server_stop(server);
         return false;
     }
@@ -70,10 +75,14 @@ bool ls_http_server_start_on_port(LsHttpServer *server, uint16_t port) {
     if (bind(server->listen_fd, (const struct sockaddr *)&address, sizeof(address)) != 0 ||
         listen(server->listen_fd, LS3DS_MAX_HTTP_CONNECTIONS) != 0) {
         server->last_errno = errno;
+        LS_LOGE("http", "bind/listen failed; port=%u errno=%d (%s)",
+                (unsigned)port, errno, strerror(errno));
         ls_http_server_stop(server);
         return false;
     }
     server->running = true;
+    LS_LOGI("http", "server listening on 0.0.0.0:%u; max-clients=%u",
+            (unsigned)port, (unsigned)LS3DS_MAX_HTTP_CONNECTIONS);
     return true;
 }
 
@@ -81,6 +90,11 @@ void ls_http_server_stop(LsHttpServer *server) {
     size_t i;
     if (server == NULL) {
         return;
+    }
+    if (server->running) {
+        LS_LOGI("http", "server stopping; accepted=%u handled=%u rejected=%u",
+                server->accepted_connections, server->handled_requests,
+                server->rejected_requests);
     }
     for (i = 0; i < LS3DS_MAX_HTTP_CONNECTIONS; ++i) {
         connection_reset(&server->clients[i]);
@@ -110,11 +124,16 @@ static void accept_connections(LsHttpServer *server, uint64_t now_ms) {
         int fd = accept(server->listen_fd, (struct sockaddr *)&peer, &peer_length);
         LsHttpConnection *connection;
         if (fd < 0) {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) server->last_errno = errno;
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                server->last_errno = errno;
+                LS_LOGW("http", "accept failed: errno=%d (%s)", errno,
+                        strerror(errno));
+            }
             return;
         }
         connection = free_connection(server);
         if (connection == NULL || !set_nonblocking(fd)) {
+            LS_LOGW("http", "connection rejected; no slot or nonblocking setup failed");
             close(fd);
             ++server->rejected_requests;
             continue;
@@ -126,9 +145,11 @@ static void accept_connections(LsHttpServer *server, uint64_t now_ms) {
                       sizeof(connection->peer_ip)) == NULL) {
             connection_reset(connection);
             ++server->rejected_requests;
+            LS_LOGW("http", "connection rejected; peer address conversion failed");
             continue;
         }
         ++server->accepted_connections;
+        LS_LOGI("http", "accepted connection from %s", connection->peer_ip);
     }
 }
 
@@ -215,6 +236,8 @@ static void response(LsHttpConnection *connection, int status,
         "Content-Type: %s\r\nConnection: close\r\n\r\n",
         status, reason, body_length, content_type);
     if (header_length < 0 || (size_t)header_length + body_length >= sizeof(connection->tx)) {
+        LS_LOGE("http", "response buffer overflow prevented; peer=%s status=%d",
+                connection->peer_ip, status);
         connection_reset(connection);
         return;
     }
@@ -223,6 +246,8 @@ static void response(LsHttpConnection *connection, int status,
     }
     connection->tx_length = (size_t)header_length + body_length;
     connection->tx_sent = 0;
+    LS_LOGD("http", "response queued; peer=%s status=%d bytes=%u",
+            connection->peer_ip, status, (unsigned)connection->tx_length);
 }
 
 static void empty_response(LsHttpConnection *connection, int status,
@@ -237,17 +262,25 @@ static void handle_request(LsHttpServer *server, LsHttpConnection *connection,
     size_t info_length;
     const char *body = connection->rx + request->header_length;
 
+    LS_LOGI("http", "request; peer=%s method=%s path=%.127s body-bytes=%u",
+            connection->peer_ip, request->method, request->path,
+            (unsigned)request->content_length);
+
     if (request->unsupported_transfer_encoding) {
+        LS_LOGW("http", "unsupported Transfer-Encoding from %s", connection->peer_ip);
         empty_response(connection, 501, "Not Implemented");
         ++server->rejected_requests;
         return;
     }
     if (request->content_length > LS3DS_MAX_HTTP_BODY_SIZE) {
+        LS_LOGW("http", "oversized body from %s: %u", connection->peer_ip,
+                (unsigned)request->content_length);
         empty_response(connection, 413, "Content Too Large");
         ++server->rejected_requests;
         return;
     }
     if (strcmp(request->method, "POST") == 0 && !request->has_content_length) {
+        LS_LOGW("http", "POST without Content-Length from %s", connection->peer_ip);
         empty_response(connection, 411, "Length Required");
         ++server->rejected_requests;
         return;
@@ -260,11 +293,21 @@ static void handle_request(LsHttpServer *server, LsHttpConnection *connection,
                                                          connection->peer_ip, &peer);
         if (parsed != LS_PARSE_OK ||
             strcmp(peer.fingerprint, identity->fingerprint) == 0) {
+            LS_LOGW("http", "register rejected; peer=%s parse=%s self=%s",
+                    connection->peer_ip, ls_protocol_parse_result_string(parsed),
+                    parsed == LS_PARSE_OK ? "true" : "false");
             empty_response(connection, 400, "Bad Request");
             ++server->rejected_requests;
             return;
         }
-        (void)ls_registry_upsert(registry, &peer, now_ms);
+        {
+            LsRegistryResult registry_result = ls_registry_upsert(registry, &peer, now_ms);
+            LS_LOGI("http", "register accepted; alias=%.64s ip=%s port=%u "
+                    "protocol=%s registry=%d", peer.alias, connection->peer_ip,
+                    (unsigned)peer.port,
+                    peer.protocol == LS_PROTOCOL_HTTPS ? "https" : "http",
+                    (int)registry_result);
+        }
         if (!ls_protocol_write_info(identity, info, sizeof(info), &info_length)) {
             empty_response(connection, 500, "Internal Server Error");
             ++server->rejected_requests;
@@ -273,6 +316,7 @@ static void handle_request(LsHttpServer *server, LsHttpConnection *connection,
         response(connection, 200, "OK", "application/json; charset=utf-8",
                  info, info_length);
         ++server->handled_requests;
+        LS_LOGI("http", "register response ready for %s", connection->peer_ip);
         return;
     }
 
@@ -286,6 +330,7 @@ static void handle_request(LsHttpServer *server, LsHttpConnection *connection,
         response(connection, 200, "OK", "application/json; charset=utf-8",
                  info, info_length);
         ++server->handled_requests;
+        LS_LOGI("http", "info response ready for %s", connection->peer_ip);
         return;
     }
 
@@ -314,12 +359,15 @@ static void read_connection(LsHttpServer *server, LsHttpConnection *connection,
     received = recv(connection->fd, connection->rx + connection->rx_length,
                     sizeof(connection->rx) - connection->rx_length, 0);
     if (received == 0) {
+        LS_LOGD("http", "peer closed before response: %s", connection->peer_ip);
         connection_reset(connection);
         return;
     }
     if (received < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             server->last_errno = errno;
+            LS_LOGW("http", "receive failed; peer=%s errno=%d (%s)",
+                    connection->peer_ip, errno, strerror(errno));
             connection_reset(connection);
         }
         return;
@@ -329,12 +377,15 @@ static void read_connection(LsHttpServer *server, LsHttpConnection *connection,
     header_length = find_header_end(connection->rx, connection->rx_length);
     if (header_length == 0) {
         if (connection->rx_length >= LS3DS_MAX_HTTP_HEADER_SIZE) {
+            LS_LOGW("http", "header limit reached from %s", connection->peer_ip);
             empty_response(connection, 431, "Request Header Fields Too Large");
             ++server->rejected_requests;
         }
         return;
     }
     if (header_length > LS3DS_MAX_HTTP_HEADER_SIZE) {
+        LS_LOGW("http", "oversized header from %s: %u", connection->peer_ip,
+                (unsigned)header_length);
         empty_response(connection, 400, "Bad Request");
         ++server->rejected_requests;
         return;
@@ -342,11 +393,14 @@ static void read_connection(LsHttpServer *server, LsHttpConnection *connection,
     memcpy(header_copy, connection->rx, header_length);
     header_copy[header_length] = '\0';
     if (!parse_request_headers(header_copy, header_length, &request)) {
+        LS_LOGW("http", "malformed HTTP headers from %s", connection->peer_ip);
         empty_response(connection, 400, "Bad Request");
         ++server->rejected_requests;
         return;
     }
     if (request.content_length > LS3DS_MAX_HTTP_BODY_SIZE) {
+        LS_LOGW("http", "declared body too large from %s: %u", connection->peer_ip,
+                (unsigned)request.content_length);
         empty_response(connection, 413, "Content Too Large");
         ++server->rejected_requests;
         return;
@@ -366,6 +420,8 @@ static void write_connection(LsHttpServer *server, LsHttpConnection *connection,
     if (sent < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             server->last_errno = errno;
+            LS_LOGW("http", "send failed; peer=%s errno=%d (%s)",
+                    connection->peer_ip, errno, strerror(errno));
             connection_reset(connection);
         }
         return;
@@ -373,6 +429,8 @@ static void write_connection(LsHttpServer *server, LsHttpConnection *connection,
     connection->tx_sent += (size_t)sent;
     connection->last_activity_ms = now_ms;
     if (connection->tx_sent == connection->tx_length) {
+        LS_LOGD("http", "response sent; peer=%s bytes=%u", connection->peer_ip,
+                (unsigned)connection->tx_length);
         connection_reset(connection);
     }
 }
@@ -389,6 +447,9 @@ void ls_http_server_update(LsHttpServer *server, const LsDevice *identity,
         if (connection->fd < 0) continue;
         if (now_ms >= connection->last_activity_ms &&
             now_ms - connection->last_activity_ms >= LS3DS_HTTP_IDLE_TIMEOUT_MS) {
+            LS_LOGW("http", "connection timed out; peer=%s rx=%u tx=%u/%u",
+                    connection->peer_ip, (unsigned)connection->rx_length,
+                    (unsigned)connection->tx_sent, (unsigned)connection->tx_length);
             connection_reset(connection);
             ++server->rejected_requests;
             continue;
