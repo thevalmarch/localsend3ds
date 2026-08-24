@@ -5,22 +5,62 @@ Build date: 2026-08-24 (Europe/Istanbul)
 - Build environment: official `devkitpro/devkitarm:latest` container
 - Container digest: `sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5`
 - Compiler: `arm-none-eabi-gcc (devkitARM) 16.1.0`
+- Toolchain packages: `devkitARM r68-1`, `libctru 2.7.0-1`,
+  `citro2d 1.7.0-1`, `citro3d 1.7.1-2`
 - Build command: `make clean && make -j2`
 - Compiler policy: `-Wall -Wextra -Werror -Wstack-usage=4096`
 - Output: `LocalSend3DS.3dsx`
-- Size: 224,300 bytes
-- SHA-256: `4a6f34dfb365c6f66c3656da426329db1b56bfdc237623a7ac3800df1757d16f`
-- Host tests: passed under AddressSanitizer and UndefinedBehaviorSanitizer
+- Size: 299,324 bytes
+- SHA-256: `668e159c69b64cdfd80c1bc21c9d2434fe00b181ea509f39c6d8f6d930acbeda`
+- Host tests: passed under dedicated AddressSanitizer, dedicated
+  UndefinedBehaviorSanitizer, and combined sanitizer runs
+- Static analysis: Clang analyzer completed without findings
 - `file` identification: `Nintendo 3DS Homebrew Application (3DSX)`
-- `3dsxdump`: 43 code pages, 7 rodata pages, 2 data pages, 12 BSS pages
+- `3dsxdump`: 59 code pages, 9 rodata pages, 2 data pages, 54 BSS pages
 
-The larger BSS contains the singleton application state. It was deliberately
-moved out of the constrained main-thread stack after the first hardware build
-exposed a stack overflow; see `crash-2026-08-24.md`.
+The 44-byte 3DSX extended header points to a 14,016-byte SMDH at byte offset
+285,308. That embedded region matches `LocalSend3DS.smdh` byte-for-byte and ends
+at the 3DSX EOF. Its parsed metadata is:
+
+- short title: `LocalSend3DS`
+- long description: `Unofficial LocalSend client for Nintendo 3DS`
+- author: `LocalSend3DS contributors`
+- icon input: generated 48x48 RGBA `icon.png`, SHA-256
+  `4f697c820b21d07c9d9805b17a829f987cc8a760b1533d41adb7a34eee711839`
+
+The UI replacement links Citro2D/Citro3D from the official `3ds-dev` package,
+uses a fixed system-font glyph buffer, and draws its remaining graphics as
+primitives. No runtime asset files are loaded from SD. The larger code/BSS
+figures reflect the graphical renderer plus the existing singleton application
+state and bounded streaming buffers. Large state remains outside the main
+thread stack, and the stack-usage compiler gate remains enabled.
+
+The approved refresh control is a 76x30 rounded secondary `Refresh` text button,
+drawn with the same Citro2D primitives and system font as the application's other
+buttons. Its 84x36 touch target exceeds the visual bounds; a held touch inverts
+the pale-mint/dark-teal colors to teal/white. Physical Y retains the same
+discovery action and is documented under Settings/About controls. The obsolete
+refresh sprite sheet and texture build path have been removed. Filename labels
+are measured with Citro2D's system-font metrics and ellipsized to their actual
+pixel bounds, preserving the final extension where it fits. A separate fixed
+measurement buffer prevents width probes from consuming the frame's draw text
+buffer.
+
+The artifact is a normal statically linked ARM 3DSX. Docker is only the build
+host environment; the application has no Docker or macOS runtime dependency.
+For this build, `LocalSend3DS.3dsx` is the only file required on the SD card.
+The SMDH icon/metadata are embedded, and the Downloads/log directories are
+created at runtime.
 
 Native installation of devkitPro pacman v6.0.2 could not be completed because
 macOS requires an administrator password for installation under
-`/opt/devkitpro`. The downloaded package came directly from the official
-devkitPro GitHub release. This does not affect the container-built artifact, but
-a native `make` still requires completing that administrator-authenticated
-installation.
+`/opt/devkitpro`. The official container build uses the same devkitARM, libctru,
+Citro2D, Citro3D, 3dsxtool, and smdhtool packages and produces a standard
+hardware artifact.
+
+The protocol behavior underneath the renderer is unchanged: startup,
+discovery, hardware-model identity, incoming/outgoing HTTP sessions, token
+validation, bounded file streaming, and the SOC:u nonblocking-connect workaround
+remain in their existing modules. The user has verified one-file transfer in
+both directions on a real New Nintendo 2DS XL. The graphical interface itself
+is not yet verified on hardware.

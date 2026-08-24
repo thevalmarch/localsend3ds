@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LocalSend3DS project mark: original dual-screen transfer artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="108" fill="#e8f2f0"/>
+  <circle cx="256" cy="256" r="192" fill="#008f88"/>
+  <path d="M104 256h70m-26-29 30 29-30 29" fill="none" stroke="#fff" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M408 256h-70m26-29-30 29 30 29" fill="none" stroke="#fff" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="204" y="148" width="104" height="79" rx="15" fill="#fff"/>
+  <rect x="204" y="285" width="104" height="79" rx="15" fill="#fff"/>
+  <circle cx="256" cy="256" r="10" fill="#fff"/>
+</svg>

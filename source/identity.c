@@ -7,6 +7,7 @@
 
 #include "config.h"
 #include "logger.h"
+#include "secure_random.h"
 
 static const char *hardware_model(void) {
     u8 model = 0xff;
@@ -29,10 +30,6 @@ static const char *hardware_model(void) {
 }
 
 bool ls_identity_create(LsDevice *identity) {
-    uint8_t random_bytes[32];
-    size_t i;
-    Result result;
-
     if (identity == NULL) {
         return false;
     }
@@ -48,22 +45,10 @@ bool ls_identity_create(LsDevice *identity) {
     identity->download = false;
     identity->announce = true;
 
-    result = psInit();
-    if (R_FAILED(result)) {
-        LS_LOGE("identity", "psInit failed: result=0x%08lX", (unsigned long)result);
+    if (!ls_secure_random_hex(identity->fingerprint,
+                              sizeof(identity->fingerprint), 32)) {
+        LS_LOGE("identity", "secure random generation failed");
         return false;
-    }
-    result = PS_GenerateRandomBytes(random_bytes, sizeof(random_bytes));
-    psExit();
-    if (R_FAILED(result)) {
-        LS_LOGE("identity", "secure random generation failed: result=0x%08lX",
-                (unsigned long)result);
-        return false;
-    }
-    for (i = 0; i < sizeof(random_bytes); ++i) {
-        (void)snprintf(identity->fingerprint + i * 2,
-                       sizeof(identity->fingerprint) - i * 2,
-                       "%02X", random_bytes[i]);
     }
     LS_LOGI("identity", "identity ready; model=%s protocol=http port=%u",
             identity->device_model, (unsigned)identity->port);

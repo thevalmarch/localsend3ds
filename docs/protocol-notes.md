@@ -35,16 +35,44 @@ TLS client layer.
    session ID and accepted file-token map; `403` rejects; `409` protects an
    active session; `400/429/500` follow the specification.
 4. `POST /api/localsend/v2/upload?sessionId=&fileId=&token=` validates all three
-   values plus peer IP, requires accepted state, requires a bounded/valid
-   `Content-Length`, and streams exactly that many bytes to `.part`.
+   values plus peer IP and requires accepted state. It accepts exact
+   `Content-Length` framing or strict incremental HTTP/1.1 chunked framing,
+   because the current official streaming client may use chunked encoding.
+   Decoded bytes stream directly to `.part` and may never exceed metadata size.
 5. Return `422` when an advertised SHA-256 does not match; otherwise close,
    flush, and rename to the collision-safe final name before `200`.
 6. `POST /api/localsend/v2/cancel?sessionId=` and local B-button cancellation
    stop I/O, close handles, remove/mark partial data, invalidate all tokens, and
    emit a terminal UI event.
 
-The data model supports multiple metadata entries, but version 0.1 accepts a
-single file so real interoperability is reached before batch UI work.
+The typed transfer model is intentionally single-file for version 0.1. A
+prepare request with more than one file receives `400`; batch support is
+deferred so real one-file interoperability is reached first.
+
+## Exact outgoing-MVP protocol flow
+
+1. Serialize the local typed device information and one selected SD file into
+   the v2.2 prepare-upload request. The file has a secure random UUID ID,
+   64-bit size, `application/octet-stream` type, and null checksum/preview.
+2. `POST /api/localsend/v2/prepare-upload` and keep the nonblocking request
+   alive while the recipient decides. Parse bounded fragmented HTTP responses;
+   `200` must contain a nonempty session ID and a token under exactly the
+   requested file ID. Treat `204/401/403/409/429` as rejection.
+3. URL-encode all returned credentials, then open a separate
+   `POST /api/localsend/v2/upload?sessionId=&fileId=&token=` connection with an
+   exact 64-bit Content-Length. Stream at most 32 KiB from SD at a time and
+   count only bytes accepted by `send()`.
+4. Require HTTP `200` after all declared bytes have been sent. A short SD read,
+   connection loss, timeout, malformed response, or unexpected status enters a
+   recoverable failure state without stopping discovery.
+5. B closes a pending prepare request before credentials exist. Once a session
+   exists it also sends `POST /api/localsend/v2/cancel?sessionId=` on a separate
+   bounded nonblocking connection.
+
+Only honest HTTP recipients are supported in this slice. HTTPS peers are not
+downgraded or contacted as plaintext; the UI asks the tester to disable
+encryption on the official recipient. This matches the upstream project's own
+plain-HTTP sender testing mode and preserves the later certificate-pinning path.
 
 ## Reverse/download API decision
 
@@ -69,4 +97,3 @@ will be reconsidered after native outgoing transfer is stable.
 Source of truth: [localsend/protocol](https://github.com/localsend/protocol).
 Implementation behavior was cross-checked against the current
 [LocalSend core HTTP and multicast modules](https://github.com/localsend/localsend/tree/main/packages/core/src).
-

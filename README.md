@@ -1,20 +1,39 @@
 # LocalSend3DS
 
 LocalSend3DS is an **unofficial, early-stage LocalSend client for the Nintendo
-3DS family**. The current development milestone is LAN discovery using stable
-LocalSend protocol v2.2. File transfer is not implemented yet.
+3DS family**. Bidirectional LAN discovery and HTTP single-file transfers with
+official LocalSend for macOS are verified on a real New Nintendo 2DS XL. The
+current build replaces the engineering consoles with a Citro2D graphical
+interface designed around the two 3DS screens.
 
 Current code includes:
 
-- a native libctru two-screen application;
+- a native libctru/Citro2D two-screen application with no terminal UI in normal
+  use;
 - Wi-Fi/SOC initialization and clean shutdown;
 - bounded IPv4 UDP multicast discovery on `224.0.0.167:53317`;
 - typed announcement parsing and a fixed-capacity device registry;
-- a nonblocking HTTP server with `/api/localsend/v2/register` and `/info`;
+- a nonblocking HTTP server with `/register`, `/info`, `/prepare-upload`,
+  `/upload`, and `/cancel`;
+- a bounded SD-card file browser and discovered-device recipient picker;
+- a nonblocking HTTP client using `/prepare-upload`, `/upload`, and `/cancel`;
+- bounded 32 KiB SD-to-socket outgoing streaming with 64-bit progress;
+- touch and physical-button navigation, approval, rejection, and cancellation;
+- secure per-transfer UUID session IDs and file tokens from the 3DS PS service;
+- bounded 32 KiB streaming to collision-safe `.part` files under
+  `sdmc:/3ds/LocalSend/Downloads/`;
+- exact 64-bit size enforcement, incremental SHA-256 verification, and final
+  rename only after successful flush/close;
+- strict filename/path validation and deterministic collision names;
 - cryptographically random per-launch HTTP identity via the 3DS PS service;
 - capped per-launch discovery diagnostics at
   `sdmc:/3ds/LocalSend/logs/latest.log`;
-- host-side parser and registry tests.
+- graphical nearby-device, file-browser, recipient, incoming-request, progress,
+  result, network-error, and About/Settings scenes;
+- a distinct LocalSend3DS SMDH icon and embedded title/description metadata;
+- host-side protocol, HTTP fragmentation/chunking, filesystem, session, SHA-256,
+  transfer-state, outgoing partial-write/response, registry, and pure UI-model
+  tests under ASan/UBSan.
 
 The `/register` server is part of the discovery milestone because current
 official LocalSend clients answer UDP announcements over HTTP. HTTPS peers are
@@ -56,24 +75,62 @@ Optional deployment is explicit and never part of the normal build:
 make deploy IP=192.168.1.50
 ```
 
-## First hardware test
+## Real-hardware receive test
 
 Copy `LocalSend3DS.3dsx` to the SD card and launch it through Homebrew Launcher.
-Put the console and a Mac running the official LocalSend client on the same
-Wi-Fi network. Press Y in LocalSend3DS to announce again. Record whether each
-device appears, plus the on-screen socket/error counters. See
-[testing.md](docs/testing.md) for the evidence checklist.
+With the console and official LocalSend for macOS on the same Wi-Fi, select one
+ordinary file on the Mac and send it to **LocalSend 3DS**. Confirm the request
+with A, then verify the final file under `sdmc:/3ds/LocalSend/Downloads/` and
+compare SHA-256 hashes. B rejects a pending request and cancels an accepted or
+active transfer. See [testing.md](docs/testing.md) for the full checklist.
+
+## Real-hardware outgoing test
+
+Outgoing TLS is not implemented, so first disable encryption in official
+LocalSend for macOS and refresh discovery until the Mac is marked `HTTP` on the
+3DS. Press A on the nearby-device screen, browse from `sdmc:/`, select one file,
+select the Mac, and press A. Accept on the Mac and compare the received file's
+SHA-256 with the SD source. B cancels while preparing or sending.
 
 Received software is always treated as data. LocalSend3DS will never install or
 launch transferred `.cia`, `.3dsx`, or other executable files automatically.
 
+## Interface and controls
+
+The top screen presents identity, Wi-Fi state, the active peer, filename,
+progress, completion, and human-readable errors. The bottom touch screen owns
+the Receive/Send/Settings navigation, nearby-device cards, bounded SD browser,
+recipient selection, approval, rejection, and cancellation.
+
+- D-Pad or Circle Pad: move through devices and files
+- A: open, select, accept, send, or dismiss a result
+- B: back, reject, or cancel
+- Y: refresh discovery
+- L/R: change the main Receive/Send/Settings section
+- Touch: select cards, tabs, files, and actions directly
+- SELECT: toggle the developer status view
+- START: exit cleanly
+
+The developer view contains bounded diagnostics; full networking details remain
+in `sdmc:/3ds/LocalSend/logs/latest.log`.
+
+## Branding status
+
+The official LocalSend application and logo were studied at upstream commit
+`daa652708fa44261b6805d37802a989e68ad7c7d`. Its Apache-2.0 license does not
+grant trademark permission, and no separate logo/trademark policy was found.
+The application therefore uses LocalSend's recognizable teal, rounded cards,
+simple device-first flows, and progress language without redistributing the
+official logo. The included dual-screen transfer mark is original project
+artwork. See [branding.md](docs/branding.md) for the audit and source links.
+
 ## Status and scope
 
-This repository does not claim real-device compatibility yet. The current code
-cross-compiles successfully with devkitARM 16.1.0 and produces
-`LocalSend3DS.3dsx`; official-client discovery still requires physical 3DS
-validation. See the
-[compatibility matrix](docs/compatibility.md) for verified versus planned work.
+Bidirectional discovery and HTTP one-file transfer in both directions are
+verified on a real New Nintendo 2DS XL, including correct hardware-model
+reporting. The new graphical interface itself is host-tested and cross-compiled
+but awaits real-hardware validation. See the
+[compatibility matrix](docs/compatibility.md).
 
 LocalSend3DS is licensed under the MIT License. LocalSend is a separate project;
 no endorsement by the LocalSend maintainers or Nintendo is implied.

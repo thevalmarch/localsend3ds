@@ -4,57 +4,93 @@ LocalSend3DS is split by responsibility and keeps protocol types independent
 from libctru wherever practical.
 
 ```text
-main / app state / input / UI
-              |
-              v
-       fixed application events       (introduced with transfer worker)
-          /             \
-discovery + HTTP       transfer session manager
-server/client          /        |        \
-       |          incoming   outgoing   cancellation
-       v              |          |
-typed LocalSend protocol + HTTP parser/state
-       |              |          |
-device registry    filesystem   incremental SHA-256
-       \              |          /
-        network sockets / TLS abstraction
-                   |
-             libctru + SD archive
+main / app scenes / input / Citro2D dual-screen UI
+          |             |                 |
+     discovery      HTTP server      outgoing HTTP client
+          |         incoming flow      prepare/upload/cancel
+          |             |                 |
+     device registry    |           SD file browser + stream
+          \             |                 /
+       typed LocalSend JSON + bounded HTTP state machines
+                         |
+              POSIX-compatible libctru sockets + SD
 ```
 
 ## Current slice
 
 - `main.c` owns process entry only.
 - `app.c` owns lifecycle, the small scene state, input, and service ordering.
-- `ui.c` owns both-screen presentation and never manipulates sockets.
+- `ui.c` owns Citro2D lifecycle, both-screen presentation, touch hit-testing,
+  and friendly error presentation. It never manipulates sockets or files.
+- `ui_model.c` owns platform-independent rectangle, list-window, percentage,
+  and byte-size helpers used by the renderer and host tests.
 - `network.c` owns SOC shared memory and local IPv4 initialization.
 - `identity.c` detects the hardware model and uses the PS service for random
   identity bytes.
 - `discovery.c` owns the UDP socket, multicast membership, announcement bursts,
   receive limits, and discovery counters.
-- `http_server.c` owns bounded incremental TCP connections and the two discovery
-  routes. It has no graphics calls.
+- `http_server.c` owns bounded incremental TCP connections, discovery routes,
+  upload routing, strict query/framing validation, and chunked decoding. It has
+  no graphics calls.
 - `localsend_protocol.c` parses and serializes typed LocalSend data without any
   3DS dependency.
 - `device_registry.c` owns deduplication, updates, capacity, and expiry without
   any 3DS dependency.
+- `transfer.c` owns the single incoming session state machine, authorization,
+  exact size/checksum accounting, partial-file cleanup, and final commit.
+- `filesystem.c` owns directory creation, filename validation, and collision
+  paths; `sha256.c` is an incremental platform-independent implementation.
+- `secure_random.c` uses PS random bytes on 3DS and host system entropy only in
+  native tests.
+- `file_browser.c` owns a fixed-capacity SD directory view and path navigation.
+- `http_response.c` incrementally parses bounded Content-Length, chunked, and
+  connection-delimited HTTP responses.
+- `outgoing_transfer.c` owns nonblocking connect/write/read states, prepare
+  response credentials, 32 KiB file streaming, progress, and cancellation.
 
-The discovery milestone deliberately stays single-threaded: every socket is
-nonblocking and every frame has a strict work bound. This is simpler and easier
-to validate than introducing synchronization before transfers exist.
+The application remains single-threaded: every socket is nonblocking and each
+frame performs bounded work. The UI thread never waits for remote approval or
+an entire file operation.
+
+## Graphical UI
+
+`LsApp` owns one small `LsUi` containing Citro2D targets and a fixed 4,096-glyph
+text buffer. The renderer reads application/protocol state but cannot mutate
+networking. Touch hit-testing returns semantic actions; `app.c` maps those onto
+the same state transitions used by A/B/Y and D-Pad/Circle Pad input. This keeps
+touch and buttons behaviorally equivalent.
+
+Normal rendering never exposes raw socket counters or errno values. SELECT
+opens a developer status view, and the capped SD log remains the source of
+detailed diagnostics. The refresh action uses the same rounded primitive button
+and system-font treatment as the rest of the interface; cards, device/file
+icons, the LocalSend3DS mark, and progress bars remain lightweight Citro2D
+primitives.
 
 ## Receive-MVP extension
 
-Add `http_parser`, `transfer`, `incoming_transfer`, `filesystem`, `crypto`,
-`event_queue`, `settings`, and `logger` modules. One transfer worker may block
-with timeouts while streaming, but it communicates only immutable request data
-and bounded progress/error events. The UI transitions explicitly through
-`INCOMING_REQUEST`, `TRANSFER_RECEIVING`, and terminal states.
+The first receive slice remains single-threaded and nonblocking at the socket
+layer. At most one 32 KiB body chunk is received and written during a connection
+update; all large buffers live in the BSS-owned `LsApp`, not on the constrained
+main-thread stack. This avoids synchronization complexity while bounding work
+and RAM. Hardware measurements will determine whether later transfers benefit
+from a dedicated worker.
 
-One `TransferSession` owns a bounded file array. Each entry owns its untrusted
-ID, random token, original display name, sanitized final path, `.part` path,
-expected/received 64-bit sizes, and optional incremental SHA-256 context. Only
-an accepted session from the same peer IP may enter `TRANSFERRING`.
+One `LsIncomingTransfer` owns one untrusted file ID, random token, original
+display name, sanitized final path, exclusive-created `.part` path,
+expected/received 64-bit sizes, and incremental SHA-256 context. Only an
+accepted session with matching session/file/token and peer IP may receive bytes.
+
+## Outgoing-MVP extension
+
+One `LsOutgoingTransfer` owns a copied peer identity, one selected SD path,
+random file ID, bounded request/response buffers, remote session/token, file
+handle, 32 KiB stream buffer, and 64-bit sent/expected counters. Prepare and
+upload use separate HTTP/1.1 connections with exact Content-Length. Partial
+socket writes advance only the acknowledged portion of each buffer. Incoming
+prepare requests receive `409` while an outgoing transfer is active, preventing
+two constrained transfer paths from running concurrently while discovery and
+registration continue.
 
 ## Limits and ownership
 
@@ -78,4 +114,3 @@ scripts/                  developer environment checks
 .github/workflows/        host and cross-build CI
 assets/                   later icon/UI assets
 ```
-

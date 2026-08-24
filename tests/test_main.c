@@ -17,6 +17,10 @@ static const char valid_announcement[] =
     "\"fingerprint\":\"abc123\",\"port\":53317,"
     "\"protocol\":\"https\",\"download\":true,\"announce\":true}";
 
+void run_receive_tests(void);
+void run_outgoing_tests(void);
+void run_ui_tests(void);
+
 static LsDevice parsed_device(void) {
     LsDevice device;
     assert(ls_protocol_parse_device(valid_announcement,
@@ -241,6 +245,9 @@ int main(void) {
     test_registry();
     test_fragmented_http_register();
     test_parser_random_bytes();
+    run_receive_tests();
+    run_outgoing_tests();
+    run_ui_tests();
     puts("All LocalSend3DS host tests passed.");
     return 0;
 }

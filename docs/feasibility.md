@@ -1,7 +1,9 @@
 # Technical feasibility analysis
 
-Status: phase-zero source review and host tests complete; Nintendo 3DS hardware
-validation pending. Research was refreshed on 2026-08-24.
+Status: phase-zero complete; bidirectional discovery and HTTP one-file transfer
+in both directions are verified on a real New Nintendo 2DS XL. The Citro2D UI
+replacement is ready for real-hardware testing. Research was refreshed on
+2026-08-24.
 
 ## Host toolchain audit
 
@@ -18,8 +20,8 @@ followed by `sudo dkp-pacman -S 3ds-dev`. This requires administrator
 authentication, which was unavailable to the automated shell. A custom compiler
 toolchain was not used. As an official fallback, the project was built in
 `devkitpro/devkitarm:latest` with devkitARM GCC 16.1.0. The resulting 3DSX was
-successfully decoded by `3dsxdump` into 43 code, 7 rodata, 2 data, and 3 BSS
-pages. `scripts/check-toolchain.sh` captures the native-host checks.
+successfully decoded by `3dsxdump`. `scripts/check-toolchain.sh` captures the
+native-host checks.
 
 ## Networking
 
@@ -30,15 +32,23 @@ page-aligned shared buffer. Its headers and implementation provide `bind`,
 timeouts, and `SOCU_GetIPInfo`. The official socket example demonstrates a
 nonblocking server in the application loop.
 
+One libctru/SOC:u compatibility exception is now explicit. A writable
+nonblocking TCP socket can retain raw `SO_ERROR == -26`, SOC:u's untranslated
+`EINPROGRESS` index. The outgoing client therefore uses a 3DS-only follow-up
+`connect()` probe and recognizes `EISCONN` as completion; ordinary POSIX builds
+continue using `SO_ERROR`. Socket creation, `fcntl`, destination, initial
+connect, readiness, raw option value, and completion probe are logged with
+bounded public metadata.
+
 This makes TCP, UDP, bounded nonblocking polling, and obtaining the console's
 IPv4 address technically feasible. The current implementation initializes a
 1 MiB SOC buffer, joins `224.0.0.167:53317` on the active IPv4 interface, and
 polls a strict maximum of eight datagrams per frame.
 
-Source support is not evidence that multicast works on every 3DS access point.
-Joining, sending, packet reception, AP multicast filtering, and behavior after
-sleep must be tested on the New Nintendo 2DS XL. IPv6 discovery is not part of
-the stable protocol baseline and is deferred.
+Joining, sending, and packet reception are verified on a real New Nintendo 2DS
+XL with official LocalSend for macOS. Other access points, other 3DS-family
+models, and sleep/reconnect behavior remain unverified. IPv6 discovery is not
+part of the stable protocol baseline and is deferred.
 
 ## HTTP
 
@@ -48,15 +58,16 @@ fragment headers and bodies. The current server:
 
 - is nonblocking and polled from the UI loop;
 - caps simultaneous clients at four;
-- caps headers and metadata bodies at 2 KiB each;
-- requires `Content-Length` for POST;
-- rejects duplicate `Content-Length`, transfer encoding, and malformed lines;
-- times out idle connections after five seconds;
+- caps headers at 2 KiB and metadata bodies at 16 KiB;
+- requires `Content-Length` for metadata POSTs and supports Content-Length or
+  strict chunked framing for `/upload`;
+- rejects duplicate/conflicting framing and malformed lines;
+- uses stage-specific decision, transfer, and metadata timeouts;
 - handles partial sends and fragmented receives.
 
-Before file upload, the connection model will move to a transfer worker or a
-small I/O worker with events back to the UI. File bodies must never use the
-metadata buffer.
+File bodies use one separate 32 KiB BSS buffer and are never accumulated in the
+metadata buffer. A worker remains a later option if hardware profiling shows
+bounded SD writes cause unacceptable UI stalls.
 
 ## HTTPS and TLS
 
@@ -86,18 +97,19 @@ bounded parser. It validates JSON syntax, UTF-8, escapes/surrogate pairs,
 required and duplicate fields, ports, enum values, lengths, and protocol major
 version without heap allocation.
 
-`prepare-upload` is nested and maps arbitrary file IDs. Before that phase,
-integrate a pinned copy of jsmn (MIT, allocation-free, portable C) or extend the
-parser behind the existing typed protocol API. The choice must retain explicit
-token and nesting limits; no unbounded DOM is planned.
+The project-owned parser now handles one bounded `prepare-upload` file entry,
+nested unknown values, u64 sizes, optional SHA-256, duplicate/missing fields,
+ID-map consistency, UTF-8, and depth limits without heap allocation. No JSON
+dependency was added.
 
 ## Filesystem
 
 libctru mounts the SD archive for normal homebrew startup and supports stdio
-paths such as `sdmc:/3ds/LocalSend/Downloads/`. `FSUSER_GetFreeBytes` can query
-free storage. The receive design uses bounded 64 KiB chunks, incremental hash,
-`filename.part`, flush/close, and atomic-style rename only after size/hash
-verification. Collision names are generated within the configured directory.
+paths such as `sdmc:/3ds/LocalSend/Downloads/`. The receive implementation uses
+bounded 32 KiB chunks, incremental hash, exclusive-created `filename.part`,
+flush/close, and final rename only after exact size/hash verification. Collision
+names are generated within the fixed directory. Preflight free-space display is
+still deferred; write/flush failures are handled and never finalize the file.
 
 Filename handling will reject absolute paths, drive-like prefixes, `.`/`..`,
 slashes, backslashes, control characters, empty names, and overlong UTF-8. A
@@ -107,14 +119,15 @@ compatibility questions.
 
 ## UI, concurrency, memory, and sleep
 
-Console rendering is sufficient for the discovery proof and uses both screens.
-Networking is bounded and nonblocking in the frame loop. Long uploads cannot
-remain there: the planned architecture uses one network/transfer worker and a
-fixed event queue, with the UI owning all graphics state.
+Citro2D now renders a normal graphical interface on both screens. The system
+font and primitive shapes avoid texture-cache growth; UI model helpers remain
+host-testable. Networking is bounded and nonblocking in the frame loop. The receive MVP does
+at most one bounded socket read and SD write per connection update; hardware
+profiling will decide whether a worker is needed.
 
-Initial hard bounds are 16 peers, four metadata connections, 2 KiB discovery
-datagrams, 2 KiB request headers, and 2 KiB metadata bodies. A transfer will use
-one reusable 64 KiB buffer; 32/64/128 KiB will be benchmarked on hardware.
+Initial hard bounds are 16 peers, four connections, 2 KiB discovery datagrams,
+2 KiB request headers, 16 KiB metadata bodies, and one reusable 32 KiB transfer
+buffer. Buffer-size benchmarking remains a hardware task.
 
 libctru exposes APT sleep hooks and configuration. The safe initial transfer
 policy is to prevent sleep while a transfer owns an open partial file, restore
@@ -126,21 +139,20 @@ failed transfer. Actual lid behavior is unresolved until hardware testing.
 | Dependency | Phase | Reason and decision |
 |---|---:|---|
 | devkitARM + libctru (`3ds-dev`) | now | Official compiler/runtime and 3DS APIs; required. |
+| Citro2D/Citro3D (`3ds-dev`) | now | Lightweight hardware-accelerated 2D UI, system-font text, and primitive drawing. |
 | libc/newlib socket and stdio APIs | now | Enough for discovery, HTTP, and streamed files. |
-| jsmn (MIT, pinned source) | receive MVP | Likely choice for bounded nested JSON; integrate only when needed. |
 | `3ds-mbedtls` 2.28.x (Apache-2.0) | TLS phase | devkitPro-supported TLS server/client and SHA-256/certificate primitives. |
 
-No graphics framework, HTTP framework, C++ runtime, or desktop library is
-needed for the first milestone. Dependency versions and licenses will be
-recorded in `THIRD_PARTY_LICENSES` when code is actually linked or vendored.
+No HTTP framework, C++ runtime, or desktop library is linked. Citro2D/Citro3D
+come from the official devkitPro `3ds-dev` group; no graphics code is vendored.
 
 ## Feasibility conclusion
 
-No source-level platform blocker has been found for IPv4 discovery, a small HTTP
-server, bounded file streaming, SD storage, random tokens, or mbedTLS. The two
-largest unresolved items are real 3DS multicast reliability and mutual-TLS
-resource/interoperability behavior. Both have concrete hardware tests and do
-not justify abandoning the protocol or inventing a companion app.
+No platform blocker has been found for IPv4 discovery, a small HTTP server,
+bounded file streaming, SD storage, random tokens, or a Citro2D interface.
+Discovery and one-file transfer in both directions are proven on hardware.
+The graphical shell and mutual-TLS resource/interoperability behavior remain
+hardware-dependent.
 
 Sources: [LocalSend protocol v2.2](https://github.com/localsend/protocol),
 [current LocalSend core](https://github.com/localsend/localsend/tree/main/packages/core/src),

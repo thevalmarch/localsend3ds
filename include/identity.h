@@ -8,4 +8,3 @@
 bool ls_identity_create(LsDevice *identity);
 
 #endif
-

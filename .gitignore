@@ -8,3 +8,6 @@ build-host/
 *.d
 .DS_Store
 /*.plist
+/latest*.log
+/crash*.jpg
+/previews/

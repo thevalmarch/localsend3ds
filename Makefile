@@ -12,10 +12,10 @@ BUILD       := build
 SOURCES     := source
 INCLUDES    := include
 DATA        :=
-GRAPHICS    :=
 APP_TITLE   := LocalSend3DS
 APP_DESCRIPTION := Unofficial LocalSend client for Nintendo 3DS
 APP_AUTHOR  := LocalSend3DS contributors
+APP_ICON    := $(TOPDIR)/icon.png
 
 ARCH        := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 CFLAGS      := -g -Wall -Wextra -Werror -Wstack-usage=4096 -O2 -mword-relocations \
@@ -23,7 +23,7 @@ CFLAGS      := -g -Wall -Wextra -Werror -Wstack-usage=4096 -O2 -mword-relocation
 CFLAGS      += $(INCLUDE) -D__3DS__ -std=gnu11
 ASFLAGS     := -g $(ARCH)
 LDFLAGS     := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
-LIBS        := -lctru -lm
+LIBS        := -lcitro2d -lcitro3d -lctru -lm
 LIBDIRS     := $(CTRULIB)
 
 ifneq ($(BUILD),$(notdir $(CURDIR)))
