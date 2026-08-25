@@ -42,6 +42,10 @@ void run_ui_tests(void) {
     assert(!ls_ui_rect_contains(rect, 39, 60));
     assert(!ls_ui_rect_contains((LsUiRect){0, 0, 0, 10}, 0, 0));
 
+    assert(ls_ui_centered_content_origin(6.0f, 30.0f, 18.0f) == 12.0f);
+    assert(ls_ui_centered_content_origin(164.0f, 42.0f, 18.0f) == 176.0f);
+    assert(ls_ui_centered_content_origin(10.0f, 10.0f, 14.0f) == 8.0f);
+
     assert(ls_ui_list_start(0, 16, 4) == 0);
     assert(ls_ui_list_start(3, 16, 4) == 0);
     assert(ls_ui_list_start(4, 16, 4) == 1);

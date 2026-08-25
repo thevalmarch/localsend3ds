@@ -1,6 +1,6 @@
 # Cross-build report
 
-Build date: 2026-08-24 (Europe/Istanbul)
+Build date: 2026-08-25 (Europe/Istanbul)
 
 - Build environment: official `devkitpro/devkitarm:latest` container
 - Container digest: `sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5`
@@ -10,21 +10,21 @@ Build date: 2026-08-24 (Europe/Istanbul)
 - Build command: `make clean && make -j2`
 - Compiler policy: `-Wall -Wextra -Werror -Wstack-usage=4096`
 - Output: `LocalSend3DS.3dsx`
-- Size: 299,324 bytes
-- SHA-256: `668e159c69b64cdfd80c1bc21c9d2434fe00b181ea509f39c6d8f6d930acbeda`
+- Size: 323,892 bytes
+- SHA-256: `9b59cb4d3c08a802dabe59c7b0cf6f7245e13df1f8958df1da378e4f323f96cd`
 - Host tests: passed under dedicated AddressSanitizer, dedicated
   UndefinedBehaviorSanitizer, and combined sanitizer runs
 - Static analysis: Clang analyzer completed without findings
 - `file` identification: `Nintendo 3DS Homebrew Application (3DSX)`
-- `3dsxdump`: 59 code pages, 9 rodata pages, 2 data pages, 54 BSS pages
+- `3dsxdump`: 65 code pages, 9 rodata pages, 2 data pages, 54 BSS pages
 
 The 44-byte 3DSX extended header points to a 14,016-byte SMDH at byte offset
-285,308. That embedded region matches `LocalSend3DS.smdh` byte-for-byte and ends
+309,876. That embedded region matches `LocalSend3DS.smdh` byte-for-byte and ends
 at the 3DSX EOF. Its parsed metadata is:
 
 - short title: `LocalSend3DS`
 - long description: `Unofficial LocalSend client for Nintendo 3DS`
-- author: `LocalSend3DS contributors`
+- author: `Val March`
 - icon input: generated 48x48 RGBA `icon.png`, SHA-256
   `4f697c820b21d07c9d9805b17a829f987cc8a760b1533d41adb7a34eee711839`
 
@@ -46,6 +46,23 @@ pixel bounds, preserving the final extension where it fits. A separate fixed
 measurement buffer prevents width probes from consuming the frame's draw text
 buffer.
 
+All rounded-button and bottom-navigation labels use one measured centering path.
+Citro2D supplies the scaled text line-box height, which is centered within the
+control's actual bounds instead of relying on a fixed top offset.
+Standalone bottom action rows share an eight-pixel bottom margin; screens with
+the persistent navigation bar retain their separate content-area placement.
+The Settings tab is a four-row scrolling General/Network/About list. Device
+name, Quick Save, and Auto Finish are persisted immediately to
+`sdmc:/3ds/LocalSend/settings.conf`; save folder, HTTP mode, and port remain
+explicitly read-only. Toggle activation is edge-triggered for physical A and
+one-shot for touch, so a held button cannot issue repeated settings writes. A
+single larger sticky heading above the list identifies the selected General,
+Network, or About section. Settings replacement avoids replace-existing rename
+semantics on SDMC: it writes `.tmp`, moves the prior file to `.bak`, promotes
+the temporary file into the empty final path, restores the backup after a
+promotion failure, and recovers a valid backup after an interrupted update.
+The developer/network view is opened through Advanced.
+
 The artifact is a normal statically linked ARM 3DSX. Docker is only the build
 host environment; the application has no Docker or macOS runtime dependency.
 For this build, `LocalSend3DS.3dsx` is the only file required on the SD card.
@@ -64,3 +81,9 @@ validation, bounded file streaming, and the SOC:u nonblocking-connect workaround
 remain in their existing modules. The user has verified one-file transfer in
 both directions on a real New Nintendo 2DS XL. The graphical interface itself
 is not yet verified on hardware.
+
+The application reports version `v1.0.0`. Its LocalSend identity uses the
+standard protocol `desktop` device type while continuing to advertise the exact
+detected Nintendo hardware model independently. Settings/About credits
+`Volkan 'Val March' Söylemez`; embedded SMDH metadata intentionally retains the
+short author name `Val March`.

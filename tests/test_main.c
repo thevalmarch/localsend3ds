@@ -20,6 +20,7 @@ static const char valid_announcement[] =
 void run_receive_tests(void);
 void run_outgoing_tests(void);
 void run_ui_tests(void);
+void run_settings_tests(void);
 
 static LsDevice parsed_device(void) {
     LsDevice device;
@@ -108,6 +109,7 @@ static void test_serialization_round_trip(void) {
     original.protocol = LS_PROTOCOL_HTTP;
     assert(ls_protocol_write_announcement(&original, json, sizeof(json), &length));
     assert(length == strlen(json));
+    assert(strstr(json, "\"deviceType\":\"desktop\"") != NULL);
     assert(strstr(json, "\\\"") != NULL);
     assert(ls_protocol_parse_device(json, length, "10.0.0.2", &round_trip) == LS_PARSE_OK);
     assert(strcmp(round_trip.alias, original.alias) == 0);
@@ -117,6 +119,10 @@ static void test_serialization_round_trip(void) {
     assert(ls_protocol_write_info(&original, json, sizeof(json), &length));
     assert(strstr(json, "\"port\"") == NULL);
     assert(strstr(json, "\"protocol\"") == NULL);
+}
+
+static void test_release_version(void) {
+    assert(strcmp(LS3DS_APP_VERSION, "v1.0.0") == 0);
 }
 
 static void test_registry(void) {
@@ -242,12 +248,14 @@ int main(void) {
     test_rejects_malformed();
     test_length_limit();
     test_serialization_round_trip();
+    test_release_version();
     test_registry();
     test_fragmented_http_register();
     test_parser_random_bytes();
     run_receive_tests();
     run_outgoing_tests();
     run_ui_tests();
+    run_settings_tests();
     puts("All LocalSend3DS host tests passed.");
     return 0;
 }

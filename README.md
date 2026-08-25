@@ -29,7 +29,9 @@ Current code includes:
 - capped per-launch discovery diagnostics at
   `sdmc:/3ds/LocalSend/logs/latest.log`;
 - graphical nearby-device, file-browser, recipient, incoming-request, progress,
-  result, network-error, and About/Settings scenes;
+  result, network-error, and scrollable Settings scenes;
+- persistent device-name, Quick Save, and Auto Finish settings stored under
+  `sdmc:/3ds/LocalSend/settings.conf`;
 - a distinct LocalSend3DS SMDH icon and embedded title/description metadata;
 - host-side protocol, HTTP fragmentation/chunking, filesystem, session, SHA-256,
   transfer-state, outgoing partial-write/response, registry, and pure UI-model
@@ -102,7 +104,7 @@ progress, completion, and human-readable errors. The bottom touch screen owns
 the Receive/Send/Settings navigation, nearby-device cards, bounded SD browser,
 recipient selection, approval, rejection, and cancellation.
 
-- D-Pad or Circle Pad: move through devices and files
+- D-Pad or Circle Pad: move through devices, files, and settings
 - A: open, select, accept, send, or dismiss a result
 - B: back, reject, or cancel
 - Y: refresh discovery
@@ -113,6 +115,14 @@ recipient selection, approval, rejection, and cancellation.
 
 The developer view contains bounded diagnostics; full networking details remain
 in `sdmc:/3ds/LocalSend/logs/latest.log`.
+
+The Settings screen keeps General, Network, and About information in one
+scrollable list. Device name is editable with the 3DS software keyboard and is
+the alias advertised over LocalSend discovery. Quick Save defaults off and can
+automatically approve incoming transfers. Auto Finish defaults on and returns
+to the appropriate idle screen 2.5 seconds after a successful transfer. Save
+folder, HTTP connection mode, and port are intentionally read-only until their
+underlying features can be changed safely.
 
 ## Branding status
 

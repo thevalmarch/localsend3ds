@@ -14,7 +14,7 @@ INCLUDES    := include
 DATA        :=
 APP_TITLE   := LocalSend3DS
 APP_DESCRIPTION := Unofficial LocalSend client for Nintendo 3DS
-APP_AUTHOR  := LocalSend3DS contributors
+APP_AUTHOR  := Val March
 APP_ICON    := $(TOPDIR)/icon.png
 
 ARCH        := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
@@ -50,7 +50,7 @@ export LIBPATHS := $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 export _3DSXDEPS := $(OUTPUT).smdh
 export _3DSXFLAGS += --smdh=$(CURDIR)/$(TARGET).smdh
 
-.PHONY: all clean host-test deploy
+.PHONY: all clean host-test deploy cia cia-clean
 
 all: $(BUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
@@ -71,6 +71,12 @@ deploy: all
 	fi
 	@test -n "$(IP)" || { echo "Usage: make deploy IP=<console-ip>"; exit 1; }
 	3dslink -a $(IP) $(TARGET).3dsx
+
+cia: all
+	@$(MAKE) --no-print-directory -C packaging/cia
+
+cia-clean:
+	@$(MAKE) --no-print-directory -C packaging/cia clean
 
 else
 

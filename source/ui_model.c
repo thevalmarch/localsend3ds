@@ -8,6 +8,12 @@ bool ls_ui_rect_contains(LsUiRect rect, int x, int y) {
            x < rect.x + rect.width && y < rect.y + rect.height;
 }
 
+float ls_ui_centered_content_origin(float container_origin,
+                                    float container_extent,
+                                    float content_extent) {
+    return container_origin + (container_extent - content_extent) * 0.5f;
+}
+
 size_t ls_ui_list_start(size_t selected, size_t count, size_t visible_rows) {
     size_t start;
     if (count == 0 || visible_rows == 0 || count <= visible_rows) return 0;

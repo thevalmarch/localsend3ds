@@ -36,6 +36,9 @@ cover:
 - pure UI hit-boundary, bounded-list-window, overflow-safe progress percentage,
   byte-size formatting, and rendered-width filename ellipsis behavior using a
   proportional-font measurement callback, including extension preservation;
+- settings defaults, alias/UTF-8 validation, persistence round-trip, malformed
+  file fallback, and Quick Save prepare-upload acceptance through the normal
+  secure session/token path;
 - 10,000 randomized inputs each for device and prepare-upload parsers.
 
 ## Cross-build gate

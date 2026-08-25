@@ -1,0 +1,231 @@
+#include "settings.h"
+
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "config.h"
+
+#define LS_SETTINGS_PATH_CAPACITY 512
+
+static bool sidecar_path(const char *path, const char *suffix, char *output,
+                         size_t capacity) {
+    int length;
+    if (path == NULL || suffix == NULL || output == NULL || capacity == 0) {
+        errno = EINVAL;
+        return false;
+    }
+    length = snprintf(output, capacity, "%s%s", path, suffix);
+    if (length < 0 || (size_t)length >= capacity) {
+        errno = ENAMETOOLONG;
+        return false;
+    }
+    return true;
+}
+
+static bool unlink_if_present(const char *path) {
+    if (unlink(path) == 0) return true;
+    return errno == ENOENT;
+}
+
+static bool save_failure(const char *temporary_path, int error_number) {
+    (void)unlink(temporary_path);
+    errno = error_number != 0 ? error_number : EIO;
+    return false;
+}
+
+static size_t utf8_sequence_length(const unsigned char *input, size_t available) {
+    uint32_t codepoint;
+    size_t count;
+    size_t i;
+    unsigned char first;
+    if (available == 0) return 0;
+    first = input[0];
+    if (first < 0x80u) return 1;
+    if (first >= 0xc2u && first <= 0xdfu) {
+        count = 2;
+        codepoint = first & 0x1fu;
+    } else if (first >= 0xe0u && first <= 0xefu) {
+        count = 3;
+        codepoint = first & 0x0fu;
+    } else if (first >= 0xf0u && first <= 0xf4u) {
+        count = 4;
+        codepoint = first & 0x07u;
+    } else {
+        return 0;
+    }
+    if (available < count) return 0;
+    for (i = 1; i < count; ++i) {
+        if ((input[i] & 0xc0u) != 0x80u) return 0;
+        codepoint = (codepoint << 6) | (input[i] & 0x3fu);
+    }
+    if ((count == 3 && codepoint < 0x800u) ||
+        (count == 4 && codepoint < 0x10000u) ||
+        (codepoint >= 0xd800u && codepoint <= 0xdfffu) ||
+        codepoint > 0x10ffffu) return 0;
+    return count;
+}
+
+static bool valid_alias(const char *alias) {
+    const unsigned char *bytes = (const unsigned char *)alias;
+    size_t length;
+    size_t offset = 0;
+    bool non_whitespace = false;
+    if (alias == NULL || alias[0] == '\0') return false;
+    length = strlen(alias);
+    if (length >= LS3DS_ALIAS_CAPACITY) return false;
+    while (offset < length) {
+        size_t sequence;
+        if (bytes[offset] < 0x80u) {
+            if (bytes[offset] < 0x20u || bytes[offset] == 0x7fu) return false;
+            if (bytes[offset] != ' ' && bytes[offset] != '\t') non_whitespace = true;
+            ++offset;
+            continue;
+        }
+        sequence = utf8_sequence_length(bytes + offset, length - offset);
+        if (sequence == 0) return false;
+        non_whitespace = true;
+        offset += sequence;
+    }
+    return non_whitespace;
+}
+
+void ls_settings_defaults(LsSettings *settings) {
+    if (settings == NULL) return;
+    memset(settings, 0, sizeof(*settings));
+    (void)snprintf(settings->alias, sizeof(settings->alias), "%s",
+                   LS3DS_DEFAULT_ALIAS);
+    settings->quick_save = false;
+    settings->auto_finish = true;
+}
+
+bool ls_settings_set_alias(LsSettings *settings, const char *alias) {
+    size_t length;
+    if (settings == NULL || !valid_alias(alias)) return false;
+    length = strlen(alias);
+    memcpy(settings->alias, alias, length + 1);
+    return true;
+}
+
+static bool parse_boolean(const char *value, bool *output) {
+    if (strcmp(value, "0") == 0 || strcmp(value, "false") == 0) {
+        *output = false;
+        return true;
+    }
+    if (strcmp(value, "1") == 0 || strcmp(value, "true") == 0) {
+        *output = true;
+        return true;
+    }
+    return false;
+}
+
+bool ls_settings_load(LsSettings *settings, const char *path) {
+    LsSettings loaded;
+    FILE *file;
+    char line[256];
+    char backup_path[LS_SETTINGS_PATH_CAPACITY];
+    bool valid = true;
+    bool loaded_backup = false;
+    if (settings == NULL || path == NULL || path[0] == '\0') return false;
+    ls_settings_defaults(&loaded);
+    file = fopen(path, "rb");
+    if (file == NULL && errno == ENOENT &&
+        sidecar_path(path, ".bak", backup_path, sizeof(backup_path))) {
+        file = fopen(backup_path, "rb");
+        loaded_backup = file != NULL;
+    }
+    if (file == NULL) {
+        *settings = loaded;
+        return false;
+    }
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *equals;
+        size_t length = strlen(line);
+        if (length > 0 && line[length - 1] != '\n' && !feof(file)) {
+            valid = false;
+            break;
+        }
+        while (length > 0 && (line[length - 1] == '\n' ||
+                              line[length - 1] == '\r')) {
+            line[--length] = '\0';
+        }
+        if (line[0] == '\0' || line[0] == '#') continue;
+        equals = strchr(line, '=');
+        if (equals == NULL) {
+            valid = false;
+            break;
+        }
+        *equals++ = '\0';
+        if (strcmp(line, "version") == 0) {
+            if (strcmp(equals, "1") != 0) valid = false;
+        } else if (strcmp(line, "device_name") == 0) {
+            if (!ls_settings_set_alias(&loaded, equals)) valid = false;
+        } else if (strcmp(line, "quick_save") == 0) {
+            if (!parse_boolean(equals, &loaded.quick_save)) valid = false;
+        } else if (strcmp(line, "auto_finish") == 0) {
+            if (!parse_boolean(equals, &loaded.auto_finish)) valid = false;
+        }
+        if (!valid) break;
+    }
+    if (ferror(file)) valid = false;
+    if (fclose(file) != 0) valid = false;
+    if (!valid) {
+        ls_settings_defaults(settings);
+        return false;
+    }
+    *settings = loaded;
+    if (loaded_backup && access(path, F_OK) != 0 && errno == ENOENT) {
+        (void)rename(backup_path, path);
+    }
+    return true;
+}
+
+bool ls_settings_save(const LsSettings *settings, const char *path) {
+    char temporary_path[LS_SETTINGS_PATH_CAPACITY];
+    char backup_path[LS_SETTINGS_PATH_CAPACITY];
+    FILE *file;
+    int error_number;
+    bool destination_exists;
+    if (settings == NULL || path == NULL || path[0] == '\0' ||
+        !valid_alias(settings->alias)) {
+        errno = EINVAL;
+        return false;
+    }
+    if (!sidecar_path(path, ".tmp", temporary_path, sizeof(temporary_path)) ||
+        !sidecar_path(path, ".bak", backup_path, sizeof(backup_path))) {
+        return false;
+    }
+    file = fopen(temporary_path, "wb");
+    if (file == NULL) return false;
+    if (fprintf(file, "version=1\ndevice_name=%s\nquick_save=%u\nauto_finish=%u\n",
+                settings->alias, settings->quick_save ? 1u : 0u,
+                settings->auto_finish ? 1u : 0u) < 0 || fflush(file) != 0) {
+        error_number = errno;
+        (void)fclose(file);
+        return save_failure(temporary_path, error_number);
+    }
+    if (fclose(file) != 0) {
+        return save_failure(temporary_path, errno);
+    }
+
+    destination_exists = access(path, F_OK) == 0;
+    if (!destination_exists && errno != ENOENT) {
+        return save_failure(temporary_path, errno);
+    }
+    if (destination_exists) {
+        if (!unlink_if_present(backup_path)) {
+            return save_failure(temporary_path, errno);
+        }
+        if (rename(path, backup_path) != 0) {
+            return save_failure(temporary_path, errno);
+        }
+    }
+    if (rename(temporary_path, path) != 0) {
+        error_number = errno;
+        if (destination_exists) (void)rename(backup_path, path);
+        return save_failure(temporary_path, error_number);
+    }
+    (void)unlink(backup_path);
+    return true;
+}

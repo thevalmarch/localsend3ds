@@ -18,9 +18,8 @@ Completed in the graphical UI build:
   uncertainty and retain a temporary development icon;
 - clearly label the project `LocalSend3DS` and `Unofficial LocalSend client for
   Nintendo 3DS` without implying upstream endorsement;
-- retain the standard `mobile` device type and independent alias/model identity
-  until upstream defines a compatible console category; never invent a protocol
-  value to influence remote icons.
+- use the standard `desktop` device type while retaining independent alias/model
+  identity; never invent a protocol value to influence remote icons.
 
 Still deferred:
 

@@ -12,6 +12,10 @@
 #define TOP_WIDTH 400
 #define BOTTOM_WIDTH 320
 #define SCREEN_HEIGHT 240
+#define BOTTOM_ACTION_MARGIN 8
+#define BOTTOM_ACTION_Y(height) \
+    (SCREEN_HEIGHT - BOTTOM_ACTION_MARGIN - (height))
+#define SETTINGS_VISIBLE_ROWS 4
 #define UI_TEXT_GLYPHS 4096
 #define UI_MEASURE_GLYPHS 512
 
@@ -35,12 +39,29 @@ static const LsUiRect nav_settings = {213, 208, 107, 32};
 static const LsUiRect refresh_button = {236, 6, 76, 30};
 static const LsUiRect refresh_touch_target = {232, 3, 84, 36};
 static const LsUiRect primary_button = {24, 164, 272, 38};
-static const LsUiRect accept_button = {14, 164, 140, 42};
-static const LsUiRect reject_button = {166, 164, 140, 42};
-static const LsUiRect cancel_button = {46, 164, 228, 42};
-static const LsUiRect browser_back_button = {8, 202, 82, 32};
-static const LsUiRect recipient_back_button = {8, 164, 76, 40};
-static const LsUiRect recipient_send_button = {94, 164, 218, 40};
+static const LsUiRect standalone_primary_button = {
+    24, BOTTOM_ACTION_Y(38), 272, 38
+};
+static const LsUiRect accept_button = {
+    14, BOTTOM_ACTION_Y(42), 140, 42
+};
+static const LsUiRect reject_button = {
+    166, BOTTOM_ACTION_Y(42), 140, 42
+};
+static const LsUiRect cancel_button = {
+    46, BOTTOM_ACTION_Y(42), 228, 42
+};
+static const LsUiRect browser_back_button = {
+    8, BOTTOM_ACTION_Y(32), 82, 32
+};
+static const LsUiRect recipient_back_button = {
+    8, BOTTOM_ACTION_Y(40), 76, 40
+};
+static const LsUiRect recipient_send_button = {
+    94, BOTTOM_ACTION_Y(40), 218, 40
+};
+static const LsUiRect settings_up_button = {288, 50, 24, 70};
+static const LsUiRect settings_down_button = {288, 126, 24, 70};
 
 static bool incoming_terminal(LsTransferState state) {
     return state == LS_TRANSFER_COMPLETED || state == LS_TRANSFER_REJECTED ||
@@ -124,6 +145,24 @@ static void draw_card(float x, float y, float width, float height,
                       selected ? COLOR_SURFACE_HIGH : COLOR_SURFACE);
 }
 
+static void draw_centered_control_label(LsUi *ui, LsUiRect rect,
+                                        const char *label, float scale,
+                                        u32 color) {
+    C2D_Text text;
+    float text_height = 0.0f;
+    float text_y;
+    if (label == NULL || label[0] == '\0' ||
+        C2D_TextParse(&text, ui->text_buffer, label) == NULL) return;
+    C2D_TextOptimize(&text);
+    C2D_TextGetDimensions(&text, scale, scale, NULL, &text_height);
+    text_y = ls_ui_centered_content_origin((float)rect.y,
+                                           (float)rect.height,
+                                           text_height);
+    C2D_DrawText(&text, C2D_WithColor | C2D_AlignCenter,
+                 (float)rect.x + (float)rect.width * 0.5f,
+                 text_y, 0.5f, scale, scale, color);
+}
+
 static void draw_button(LsUi *ui, LsUiRect rect, const char *label,
                         u32 background, u32 foreground) {
     float radius = 5.0f;
@@ -137,8 +176,7 @@ static void draw_button(LsUi *ui, LsUiRect rect, const char *label,
     C2D_DrawCircleSolid(x + width - radius, y + radius, 0.2f, radius, background);
     C2D_DrawCircleSolid(x + radius, y + height - radius, 0.2f, radius, background);
     C2D_DrawCircleSolid(x + width - radius, y + height - radius, 0.2f, radius, background);
-    draw_text(ui, label, (float)rect.x + (float)rect.width / 2.0f,
-              (float)rect.y + 8.0f, 0.58f, foreground, C2D_AlignCenter, 0.0f);
+    draw_centered_control_label(ui, rect, label, 0.58f, foreground);
 }
 
 static void draw_refresh_button(LsUi *ui) {
@@ -227,6 +265,77 @@ static const char *friendly_incoming_error(const LsIncomingTransfer *transfer) {
     return "Could not receive the file. Check the log for details.";
 }
 
+static const char *settings_section(LsSettingsItem item) {
+    if (item <= LS_SETTING_SAVE_FOLDER) return "GENERAL";
+    if (item <= LS_SETTING_ADVANCED) return "NETWORK";
+    return "ABOUT";
+}
+
+static const char *settings_label(LsSettingsItem item) {
+    switch (item) {
+        case LS_SETTING_DEVICE_NAME: return "Device name";
+        case LS_SETTING_QUICK_SAVE: return "Quick Save";
+        case LS_SETTING_AUTO_FINISH: return "Auto Finish";
+        case LS_SETTING_SAVE_FOLDER: return "Save folder (read-only)";
+        case LS_SETTING_CONNECTION: return "Connection (read-only)";
+        case LS_SETTING_PORT: return "Port (read-only)";
+        case LS_SETTING_ADVANCED: return "Advanced";
+        case LS_SETTING_ABOUT_APP: return "LocalSend3DS";
+        case LS_SETTING_VERSION: return "Version";
+        case LS_SETTING_AUTHOR: return "Author";
+        case LS_SETTING_LICENSE: return "License";
+        case LS_SETTING_COUNT: default: return "Settings";
+    }
+}
+
+static const char *settings_value(const LsApp *app, LsSettingsItem item) {
+    switch (item) {
+        case LS_SETTING_DEVICE_NAME: return app->settings.alias;
+        case LS_SETTING_QUICK_SAVE:
+            return app->settings.quick_save ? "On" : "Off";
+        case LS_SETTING_AUTO_FINISH:
+            return app->settings.auto_finish ? "On" : "Off";
+        case LS_SETTING_SAVE_FOLDER: return "Downloads";
+        case LS_SETTING_CONNECTION: return "HTTP";
+        case LS_SETTING_PORT: return "53317";
+        case LS_SETTING_ADVANCED: return "Open";
+        case LS_SETTING_ABOUT_APP: return "Unofficial client";
+        case LS_SETTING_VERSION: return LS3DS_APP_VERSION;
+        case LS_SETTING_AUTHOR: return "Volkan 'Val March' Söylemez";
+        case LS_SETTING_LICENSE: return "MIT";
+        case LS_SETTING_COUNT: default: return "";
+    }
+}
+
+static const char *settings_description(LsSettingsItem item) {
+    switch (item) {
+        case LS_SETTING_DEVICE_NAME:
+            return "Name advertised to nearby LocalSend devices. Press A or tap to edit.";
+        case LS_SETTING_QUICK_SAVE:
+            return "Accept incoming files automatically without showing the approval step.";
+        case LS_SETTING_AUTO_FINISH:
+            return "Return to Receive or Send shortly after a successful transfer.";
+        case LS_SETTING_SAVE_FOLDER:
+            return "Read-only: sdmc:/3ds/LocalSend/Downloads/";
+        case LS_SETTING_CONNECTION:
+            return "Read-only plain HTTP. TLS is not implemented yet.";
+        case LS_SETTING_PORT:
+            return "Read-only LocalSend HTTP and discovery port.";
+        case LS_SETTING_ADVANCED:
+            return "Open network details. Y refreshes nearby devices; SELECT toggles this view.";
+        case LS_SETTING_ABOUT_APP:
+            return "Unofficial LocalSend client for Nintendo 3DS.";
+        case LS_SETTING_VERSION:
+            return "Current LocalSend3DS development version.";
+        case LS_SETTING_AUTHOR:
+            return "LocalSend3DS author.";
+        case LS_SETTING_LICENSE:
+            return "LocalSend3DS is released under the MIT License.";
+        case LS_SETTING_COUNT: default:
+            return "";
+    }
+}
+
 static void draw_top_header(LsApp *app) {
     LsUi *ui = &app->ui;
     draw_brand_mark(27, 26, 0.72f, COLOR_PRIMARY);
@@ -299,7 +408,7 @@ static void draw_top_idle(LsApp *app) {
         return;
     }
     draw_text(ui, app->state == LS_APP_RECEIVE ? "Ready to receive" :
-                  app->state == LS_APP_SETTINGS ? "About LocalSend3DS" :
+                  app->state == LS_APP_SETTINGS ? "Settings" :
                   app->state == LS_APP_FILE_BROWSER ? "Choose a file" :
                   app->state == LS_APP_RECIPIENT_PICKER ? "Choose a recipient" :
                   "Nearby devices",
@@ -310,12 +419,14 @@ static void draw_top_idle(LsApp *app) {
         draw_text(ui, "Files are saved in /3ds/LocalSend/Downloads",
                   200, 174, 0.42f, COLOR_MUTED, C2D_AlignCenter, 330);
     } else if (app->state == LS_APP_SETTINGS) {
-        draw_textf(ui, 200, 116, 0.48f, COLOR_TEXT, C2D_AlignCenter, 340,
-                   "Version %s  -  Protocol %s\n%s",
-                   LS3DS_APP_VERSION, LS3DS_PROTOCOL_VERSION,
-                   app->identity.device_model);
-        draw_text(ui, "Open source - unofficial LocalSend client",
-                  200, 174, 0.42f, COLOR_MUTED, C2D_AlignCenter, 340);
+        LsSettingsItem item = app->selected_setting < LS_SETTING_COUNT ?
+            (LsSettingsItem)app->selected_setting : LS_SETTING_DEVICE_NAME;
+        draw_text(ui, settings_label(item), 40, 112, 0.58f, COLOR_TEXT,
+                  C2D_AlignLeft, 310);
+        draw_text(ui, settings_value(app, item), 40, 142, 0.46f,
+                  COLOR_PRIMARY_DARK, C2D_AlignLeft, 310);
+        draw_text(ui, settings_description(item), 40, 173, 0.40f,
+                  COLOR_MUTED, C2D_AlignLeft, 320);
     } else if (selected != NULL) {
         draw_device_icon(64, 120, selected->device_type, COLOR_PRIMARY);
         draw_text(ui, selected->alias, 112, 112, 0.62f, COLOR_TEXT,
@@ -392,16 +503,16 @@ static void draw_nav(LsUi *ui, LsAppState state) {
     } else {
         C2D_DrawRectSolid(119, 208, 0.3f, 80, 3, COLOR_PRIMARY);
     }
-    draw_text(ui, "Receive", 53, 216, 0.43f,
-              state == LS_APP_RECEIVE ? COLOR_PRIMARY_DARK : COLOR_MUTED,
-              C2D_AlignCenter, 0.0f);
-    draw_text(ui, "Send", 159, 216, 0.43f,
-              state != LS_APP_RECEIVE && state != LS_APP_SETTINGS ?
-                  COLOR_PRIMARY_DARK : COLOR_MUTED,
-              C2D_AlignCenter, 0.0f);
-    draw_text(ui, "Settings", 266, 216, 0.43f,
-              state == LS_APP_SETTINGS ? COLOR_PRIMARY_DARK : COLOR_MUTED,
-              C2D_AlignCenter, 0.0f);
+    draw_centered_control_label(
+        ui, nav_receive, "Receive", 0.43f,
+        state == LS_APP_RECEIVE ? COLOR_PRIMARY_DARK : COLOR_MUTED);
+    draw_centered_control_label(
+        ui, nav_send, "Send", 0.43f,
+        state != LS_APP_RECEIVE && state != LS_APP_SETTINGS ?
+            COLOR_PRIMARY_DARK : COLOR_MUTED);
+    draw_centered_control_label(
+        ui, nav_settings, "Settings", 0.43f,
+        state == LS_APP_SETTINGS ? COLOR_PRIMARY_DARK : COLOR_MUTED);
 }
 
 static void draw_device_row(LsApp *app, size_t index, float y) {
@@ -456,19 +567,61 @@ static void render_receive_home(LsApp *app) {
 }
 
 static void render_settings(LsApp *app) {
-    draw_bottom_header(&app->ui, "Settings & About", "Advanced settings are not part of this milestone", false);
-    draw_card(12, 52, 296, 106, false);
-    draw_textf(&app->ui, 24, 60, 0.39f, COLOR_TEXT, C2D_AlignLeft, 270,
-               "LocalSend3DS %s  -  Protocol %s HTTP\n%s\nMIT licensed - unofficial client",
-               LS3DS_APP_VERSION, LS3DS_PROTOCOL_VERSION,
-               app->identity.device_model);
-    draw_text(&app->ui, "Controls", 24, 111, 0.38f, COLOR_PRIMARY_DARK,
-              C2D_AlignLeft, 0.0f);
-    draw_text(&app->ui, "Y - Refresh nearby devices", 24, 132, 0.36f,
-              COLOR_MUTED, C2D_AlignLeft, 270);
-    draw_button(&app->ui, (LsUiRect){44, 164, 232, 34},
-                app->ui.debug_view ? "Hide developer view" : "Show developer view",
-                COLOR_SURFACE_HIGH, COLOR_PRIMARY_DARK);
+    size_t start = ls_ui_list_start(app->selected_setting, LS_SETTING_COUNT,
+                                    SETTINGS_VISIBLE_ROWS);
+    LsSettingsItem selected_item = app->selected_setting < LS_SETTING_COUNT ?
+        (LsSettingsItem)app->selected_setting : LS_SETTING_DEVICE_NAME;
+    size_t row;
+    draw_bottom_header(&app->ui, "Settings", NULL, false);
+    draw_text(&app->ui, settings_section(selected_item), 12, 31, 0.38f,
+              COLOR_PRIMARY_DARK, C2D_AlignLeft, 0.0f);
+    for (row = 0; row < SETTINGS_VISIBLE_ROWS && start + row < LS_SETTING_COUNT;
+         ++row) {
+        LsSettingsItem item = (LsSettingsItem)(start + row);
+        LsUiRect row_rect = {8, 49 + (int)(37 * row), 276, 35};
+        char bounded_value[LS3DS_ALIAS_CAPACITY];
+        const char *value = settings_value(app, item);
+        draw_card((float)row_rect.x, (float)row_rect.y,
+                  (float)row_rect.width, (float)row_rect.height,
+                  start + row == app->selected_setting);
+        draw_text(&app->ui, settings_label(item), 17,
+                  (float)row_rect.y + 11, 0.39f, COLOR_TEXT,
+                  C2D_AlignLeft, 190);
+        if (item == LS_SETTING_QUICK_SAVE || item == LS_SETTING_AUTO_FINISH) {
+            draw_button(&app->ui,
+                        (LsUiRect){230, row_rect.y + 6, 46, 23}, value,
+                        (item == LS_SETTING_QUICK_SAVE ? app->settings.quick_save :
+                                                        app->settings.auto_finish) ?
+                            COLOR_PRIMARY : COLOR_SURFACE_HIGH,
+                        (item == LS_SETTING_QUICK_SAVE ? app->settings.quick_save :
+                                                        app->settings.auto_finish) ?
+                            COLOR_ON_PRIMARY : COLOR_PRIMARY_DARK);
+        } else {
+            bounded_filename(&app->ui, value, 0.35f, 112.0f,
+                             bounded_value, sizeof(bounded_value));
+            draw_text(&app->ui, bounded_value, 276,
+                      (float)row_rect.y + 11, 0.35f, COLOR_MUTED,
+                      C2D_AlignRight, 0.0f);
+        }
+    }
+    draw_card((float)settings_up_button.x, (float)settings_up_button.y,
+              (float)settings_up_button.width, (float)settings_up_button.height,
+              false);
+    draw_card((float)settings_down_button.x, (float)settings_down_button.y,
+              (float)settings_down_button.width, (float)settings_down_button.height,
+              false);
+    C2D_DrawTriangle(300, 78, start > 0 ? COLOR_PRIMARY : COLOR_BORDER,
+                     294, 86, start > 0 ? COLOR_PRIMARY : COLOR_BORDER,
+                     306, 86, start > 0 ? COLOR_PRIMARY : COLOR_BORDER, 0.4f);
+    C2D_DrawTriangle(294, 159,
+                     start + SETTINGS_VISIBLE_ROWS < LS_SETTING_COUNT ?
+                         COLOR_PRIMARY : COLOR_BORDER,
+                     306, 159,
+                     start + SETTINGS_VISIBLE_ROWS < LS_SETTING_COUNT ?
+                         COLOR_PRIMARY : COLOR_BORDER,
+                     300, 167,
+                     start + SETTINGS_VISIBLE_ROWS < LS_SETTING_COUNT ?
+                         COLOR_PRIMARY : COLOR_BORDER, 0.4f);
     draw_nav(&app->ui, LS_APP_SETTINGS);
 }
 
@@ -624,7 +777,7 @@ static void render_bottom(LsApp *app) {
         draw_bottom_header(&app->ui, "Wi-Fi unavailable", "LocalSend needs a local network", false);
         draw_text(&app->ui, "Check the system Wi-Fi connection.", 160, 91,
                   0.50f, COLOR_MUTED, C2D_AlignCenter, 290);
-        draw_button(&app->ui, primary_button, "Retry  Y", COLOR_PRIMARY,
+        draw_button(&app->ui, standalone_primary_button, "Retry  Y", COLOR_PRIMARY,
                     COLOR_ON_PRIMARY);
     } else {
         render_send_home(app);
@@ -710,7 +863,9 @@ LsUiTouchResult ls_ui_touch_action(const LsApp *app, touchPosition touch) {
         return result;
     }
     if (app->state == LS_APP_NETWORK_ERROR) {
-        if (ls_ui_rect_contains(primary_button, touch.px, touch.py)) result.action = LS_UI_ACTION_REFRESH;
+        if (ls_ui_rect_contains(standalone_primary_button, touch.px, touch.py)) {
+            result.action = LS_UI_ACTION_REFRESH;
+        }
         return result;
     }
     if (app->state == LS_APP_FILE_BROWSER) {
@@ -754,9 +909,23 @@ LsUiTouchResult ls_ui_touch_action(const LsApp *app, touchPosition touch) {
     } else if (ls_ui_rect_contains(refresh_touch_target, touch.px, touch.py) &&
                app->state != LS_APP_SETTINGS) {
         result.action = LS_UI_ACTION_REFRESH;
-    } else if (app->state == LS_APP_SETTINGS &&
-               ls_ui_rect_contains((LsUiRect){44, 164, 232, 34}, touch.px, touch.py)) {
-        result.action = LS_UI_ACTION_TOGGLE_DEBUG;
+    } else if (app->state == LS_APP_SETTINGS) {
+        start = ls_ui_list_start(app->selected_setting, LS_SETTING_COUNT,
+                                 SETTINGS_VISIBLE_ROWS);
+        for (row = 0; row < SETTINGS_VISIBLE_ROWS &&
+                      start + row < LS_SETTING_COUNT; ++row) {
+            LsUiRect rect = {8, 49 + (int)(37 * row), 276, 35};
+            if (ls_ui_rect_contains(rect, touch.px, touch.py)) {
+                result.action = LS_UI_ACTION_LIST_ITEM;
+                result.index = start + row;
+                return result;
+            }
+        }
+        if (ls_ui_rect_contains(settings_up_button, touch.px, touch.py)) {
+            result.action = LS_UI_ACTION_SETTINGS_UP;
+        } else if (ls_ui_rect_contains(settings_down_button, touch.px, touch.py)) {
+            result.action = LS_UI_ACTION_SETTINGS_DOWN;
+        }
     } else if (app->state == LS_APP_DISCOVERY) {
         start = ls_ui_list_start(app->selected_device, app->registry.count, 2);
         for (row = 0; row < 2 && start + row < app->registry.count; ++row) {

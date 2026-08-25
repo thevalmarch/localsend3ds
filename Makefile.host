@@ -6,8 +6,9 @@ HOST_SOURCES := source/localsend_protocol.c source/device_registry.c source/http
                 source/discovery.c source/filesystem.c source/transfer.c source/sha256.c \
                 source/secure_random.c source/file_browser.c source/http_response.c \
                 source/socket_compat.c source/outgoing_transfer.c source/ui_model.c
+HOST_SOURCES += source/settings.c
 HOST_TEST_SOURCES := tests/test_main.c tests/test_receive.c tests/test_outgoing.c \
-                     tests/test_ui.c \
+                     tests/test_ui.c tests/test_settings.c \
                      tests/logger_stub.c
 HOST_TEST := $(HOST_BUILD)/localsend3ds_tests
 

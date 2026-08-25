@@ -67,6 +67,14 @@ and system-font treatment as the rest of the interface; cards, device/file
 icons, the LocalSend3DS mark, and progress bars remain lightweight Citro2D
 primitives.
 
+Settings are represented by a small platform-independent `LsSettings` model.
+Changes are written immediately through a temporary file to
+`sdmc:/3ds/LocalSend/settings.conf`; startup falls back to conservative defaults
+if the file is absent or malformed. The editable alias is copied into the
+announced `LsDevice` identity. Quick Save invokes the same secure prepare-upload
+approval/session path as manual acceptance, and Auto Finish only dismisses
+successful terminal states after a fixed 2.5-second display interval.
+
 ## Receive-MVP extension
 
 The first receive slice remains single-threaded and nonblocking at the socket

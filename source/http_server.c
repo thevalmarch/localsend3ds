@@ -426,6 +426,10 @@ void ls_http_server_set_external_transfer_busy(LsHttpServer *server, bool busy) 
     if (server != NULL) server->external_transfer_busy = busy;
 }
 
+void ls_http_server_set_quick_save(LsHttpServer *server, bool enabled) {
+    if (server != NULL) server->quick_save = enabled;
+}
+
 static void handle_prepare_upload(LsHttpServer *server,
                                   LsHttpConnection *connection,
                                   const char *body, size_t body_length,
@@ -462,6 +466,11 @@ static void handle_prepare_upload(LsHttpServer *server,
     LS_LOGI("transfer", "prepare-upload received; sender=%.64s ip=%s files=1 file=%.96s bytes=%llu",
             request.sender.alias, connection->peer_ip, request.file.file_name,
             (unsigned long long)request.file.size);
+    if (server->quick_save) {
+        LS_LOGI("transfer", "Quick Save accepting incoming transfer; sender=%.64s",
+                request.sender.alias);
+        (void)ls_http_server_accept_transfer(server, now_ms);
+    }
 }
 
 static void handle_remote_cancel(LsHttpServer *server,

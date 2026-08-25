@@ -286,7 +286,8 @@ static void read_response(int client, char *response, size_t capacity) {
 }
 
 static int send_prepare(LsHttpServer *server, const LsDevice *identity,
-                        LsDeviceRegistry *registry, uint64_t *now) {
+                        LsDeviceRegistry *registry, uint64_t *now,
+                        LsTransferState expected_state) {
     char request[2048];
     int length;
     int client = connect_test_client(server);
@@ -302,7 +303,7 @@ static int send_prepare(LsHttpServer *server, const LsDevice *identity,
     assert(send(client, request + 60, (size_t)length - 60, 0) ==
            (ssize_t)((size_t)length - 60));
     pump(server, identity, registry, now, 10);
-    assert(server->transfer.state == LS_TRANSFER_WAITING_FOR_USER);
+    assert(server->transfer.state == expected_state);
     return client;
 }
 
@@ -328,7 +329,8 @@ static void test_http_receive_chunked(void) {
     assert(directory != NULL);
     ls_registry_init(&registry);
     assert(ls_http_server_start_on_port_at(&server, 0, directory));
-    prepare_client = send_prepare(&server, &identity, &registry, &now);
+    prepare_client = send_prepare(&server, &identity, &registry, &now,
+                                  LS_TRANSFER_WAITING_FOR_USER);
     /* Reproduce a real user taking longer than the normal HTTP idle timeout to
      * approve, while remaining inside the prepare decision timeout. */
     now += LS3DS_HTTP_IDLE_TIMEOUT_MS + 1000u;
@@ -395,7 +397,8 @@ static void test_http_reject_and_invalid_token(void) {
     assert(directory != NULL);
     ls_registry_init(&registry);
     assert(ls_http_server_start_on_port_at(&server, 0, directory));
-    client = send_prepare(&server, &identity, &registry, &now);
+    client = send_prepare(&server, &identity, &registry, &now,
+                          LS_TRANSFER_WAITING_FOR_USER);
     action_result = ls_http_server_reject_transfer(&server, now++);
     assert(action_result);
     pump(&server, &identity, &registry, &now, 10);
@@ -403,7 +406,8 @@ static void test_http_reject_and_invalid_token(void) {
     close(client);
     assert(strstr(response, "HTTP/1.1 403 Forbidden") != NULL);
 
-    client = send_prepare(&server, &identity, &registry, &now);
+    client = send_prepare(&server, &identity, &registry, &now,
+                          LS_TRANSFER_WAITING_FOR_USER);
     action_result = ls_http_server_accept_transfer(&server, now++);
     assert(action_result);
     pump(&server, &identity, &registry, &now, 10);
@@ -423,6 +427,33 @@ static void test_http_reject_and_invalid_token(void) {
     assert(server.transfer.state == LS_TRANSFER_ACCEPTED);
     action_result = ls_http_server_cancel_transfer(&server, now++);
     assert(action_result);
+    ls_http_server_stop(&server);
+    assert(rmdir(directory) == 0);
+}
+
+static void test_http_quick_save(void) {
+    char directory_template[] = "/tmp/localsend3ds-http-quick.XXXXXX";
+    char *directory = mkdtemp(directory_template);
+    LsHttpServer server;
+    LsDevice identity = test_identity();
+    LsDeviceRegistry registry;
+    uint64_t now = 900;
+    char response[4096];
+    int client;
+    bool cancelled;
+    assert(directory != NULL);
+    ls_registry_init(&registry);
+    assert(ls_http_server_start_on_port_at(&server, 0, directory));
+    ls_http_server_set_quick_save(&server, true);
+    client = send_prepare(&server, &identity, &registry, &now,
+                          LS_TRANSFER_ACCEPTED);
+    read_response(client, response, sizeof(response));
+    close(client);
+    assert(strstr(response, "HTTP/1.1 200 OK") != NULL);
+    assert(server.transfer.session_id[0] != '\0');
+    assert(server.transfer.file_token[0] != '\0');
+    cancelled = ls_http_server_cancel_transfer(&server, now++);
+    assert(cancelled);
     ls_http_server_stop(&server);
     assert(rmdir(directory) == 0);
 }
@@ -452,5 +483,6 @@ void run_receive_tests(void) {
     test_transfer_state_and_files();
     test_http_receive_chunked();
     test_http_reject_and_invalid_token();
+    test_http_quick_save();
     test_prepare_parser_random_bytes();
 }

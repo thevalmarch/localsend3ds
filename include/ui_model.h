@@ -15,6 +15,9 @@ typedef struct {
 typedef float (*LsUiMeasureTextFn)(const char *text, void *context);
 
 bool ls_ui_rect_contains(LsUiRect rect, int x, int y);
+float ls_ui_centered_content_origin(float container_origin,
+                                    float container_extent,
+                                    float content_extent);
 size_t ls_ui_list_start(size_t selected, size_t count, size_t visible_rows);
 unsigned ls_ui_percentage(uint64_t current, uint64_t total, bool completed);
 bool ls_ui_format_size(uint64_t bytes, char *output, size_t capacity);

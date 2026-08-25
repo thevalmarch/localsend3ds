@@ -63,6 +63,7 @@ typedef struct {
     unsigned rejected_requests;
     int last_errno;
     bool external_transfer_busy;
+    bool quick_save;
     char header_buffer[LS3DS_MAX_HTTP_HEADER_SIZE + 1];
     char stream_buffer[LS3DS_HTTP_STREAM_BUFFER_SIZE];
     char download_directory[LS3DS_PATH_CAPACITY];
@@ -81,5 +82,6 @@ bool ls_http_server_reject_transfer(LsHttpServer *server, uint64_t now_ms);
 bool ls_http_server_cancel_transfer(LsHttpServer *server, uint64_t now_ms);
 const LsIncomingTransfer *ls_http_server_transfer(const LsHttpServer *server);
 void ls_http_server_set_external_transfer_busy(LsHttpServer *server, bool busy);
+void ls_http_server_set_quick_save(LsHttpServer *server, bool enabled);
 
 #endif

@@ -39,7 +39,7 @@ bool ls_identity_create(LsDevice *identity) {
                    LS3DS_PROTOCOL_VERSION);
     (void)snprintf(identity->device_model, sizeof(identity->device_model), "%s",
                    hardware_model());
-    identity->device_type = LS_DEVICE_MOBILE;
+    identity->device_type = LS_DEVICE_DESKTOP;
     identity->port = LS3DS_HTTP_PORT;
     identity->protocol = LS_PROTOCOL_HTTP;
     identity->download = false;
