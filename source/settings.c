@@ -120,27 +120,37 @@ static bool parse_boolean(const char *value, bool *output) {
     return false;
 }
 
-bool ls_settings_load(LsSettings *settings, const char *path) {
+typedef enum {
+    SETTINGS_LOAD_VALID = 0,
+    SETTINGS_LOAD_MISSING,
+    SETTINGS_LOAD_INVALID
+} SettingsLoadResult;
+
+static SettingsLoadResult load_settings_file(const char *path,
+                                              LsSettings *settings) {
+    enum {
+        SETTINGS_FIELD_VERSION = 1u << 0,
+        SETTINGS_FIELD_DEVICE_NAME = 1u << 1,
+        SETTINGS_FIELD_QUICK_SAVE = 1u << 2,
+        SETTINGS_FIELD_AUTO_FINISH = 1u << 3
+    };
+    const unsigned required_fields = SETTINGS_FIELD_VERSION |
+                                     SETTINGS_FIELD_DEVICE_NAME |
+                                     SETTINGS_FIELD_QUICK_SAVE |
+                                     SETTINGS_FIELD_AUTO_FINISH;
     LsSettings loaded;
     FILE *file;
     char line[256];
-    char backup_path[LS_SETTINGS_PATH_CAPACITY];
+    unsigned fields = 0;
     bool valid = true;
-    bool loaded_backup = false;
-    if (settings == NULL || path == NULL || path[0] == '\0') return false;
     ls_settings_defaults(&loaded);
     file = fopen(path, "rb");
-    if (file == NULL && errno == ENOENT &&
-        sidecar_path(path, ".bak", backup_path, sizeof(backup_path))) {
-        file = fopen(backup_path, "rb");
-        loaded_backup = file != NULL;
-    }
     if (file == NULL) {
-        *settings = loaded;
-        return false;
+        return errno == ENOENT ? SETTINGS_LOAD_MISSING : SETTINGS_LOAD_INVALID;
     }
     while (fgets(line, sizeof(line), file) != NULL) {
         char *equals;
+        unsigned field = 0;
         size_t length = strlen(line);
         if (length > 0 && line[length - 1] != '\n' && !feof(file)) {
             valid = false;
@@ -158,26 +168,67 @@ bool ls_settings_load(LsSettings *settings, const char *path) {
         }
         *equals++ = '\0';
         if (strcmp(line, "version") == 0) {
+            field = SETTINGS_FIELD_VERSION;
             if (strcmp(equals, "1") != 0) valid = false;
         } else if (strcmp(line, "device_name") == 0) {
+            field = SETTINGS_FIELD_DEVICE_NAME;
             if (!ls_settings_set_alias(&loaded, equals)) valid = false;
         } else if (strcmp(line, "quick_save") == 0) {
+            field = SETTINGS_FIELD_QUICK_SAVE;
             if (!parse_boolean(equals, &loaded.quick_save)) valid = false;
         } else if (strcmp(line, "auto_finish") == 0) {
+            field = SETTINGS_FIELD_AUTO_FINISH;
             if (!parse_boolean(equals, &loaded.auto_finish)) valid = false;
         }
+        if (field != 0 && (fields & field) != 0) valid = false;
+        fields |= field;
         if (!valid) break;
     }
     if (ferror(file)) valid = false;
     if (fclose(file) != 0) valid = false;
-    if (!valid) {
-        ls_settings_defaults(settings);
+    if (fields != required_fields) valid = false;
+    if (!valid) return SETTINGS_LOAD_INVALID;
+    *settings = loaded;
+    return SETTINGS_LOAD_VALID;
+}
+
+static void recover_backup_file(const char *path, const char *backup_path,
+                                SettingsLoadResult primary_result) {
+    char temporary_path[LS_SETTINGS_PATH_CAPACITY];
+    if (primary_result == SETTINGS_LOAD_MISSING) {
+        (void)rename(backup_path, path);
+        return;
+    }
+    if (!sidecar_path(path, ".tmp", temporary_path, sizeof(temporary_path)) ||
+        !unlink_if_present(temporary_path) || rename(path, temporary_path) != 0) {
+        return;
+    }
+    if (rename(backup_path, path) != 0) {
+        (void)rename(temporary_path, path);
+        return;
+    }
+    /* The valid backup is now primary; the quarantined corrupt file is expendable. */
+    (void)unlink(temporary_path);
+}
+
+bool ls_settings_load(LsSettings *settings, const char *path) {
+    LsSettings loaded;
+    char backup_path[LS_SETTINGS_PATH_CAPACITY];
+    SettingsLoadResult primary_result;
+    if (settings == NULL || path == NULL || path[0] == '\0') return false;
+    ls_settings_defaults(settings);
+    if (!sidecar_path(path, ".bak", backup_path, sizeof(backup_path))) return false;
+    primary_result = load_settings_file(path, &loaded);
+    if (primary_result == SETTINGS_LOAD_VALID) {
+        *settings = loaded;
+        return true;
+    }
+    if (load_settings_file(backup_path, &loaded) != SETTINGS_LOAD_VALID) {
         return false;
     }
     *settings = loaded;
-    if (loaded_backup && access(path, F_OK) != 0 && errno == ENOENT) {
-        (void)rename(backup_path, path);
-    }
+    /* Loading succeeds even if conservative on-disk recovery cannot complete. */
+    recover_backup_file(path, backup_path, primary_result);
     return true;
 }
 

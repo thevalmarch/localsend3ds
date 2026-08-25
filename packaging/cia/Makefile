@@ -1,4 +1,5 @@
 .SUFFIXES:
+.NOTPARALLEL:
 
 ROOT            := ../..
 TARGET          := LocalSend3DS
@@ -29,6 +30,10 @@ $(ASSET_STAMP): scripts/generate_assets.py $(APP_ICON) | $(BUILD)
 	@touch $@
 
 $(BANNER_PNG) $(BANNER_WAV): $(ASSET_STAMP)
+	@if [ ! -f "$(BANNER_PNG)" ] || [ ! -f "$(BANNER_WAV)" ]; then \
+		$(PYTHON) scripts/generate_assets.py $(APP_ICON) $(BANNER_PNG) $(BANNER_WAV) && \
+		touch $(ASSET_STAMP); \
+	fi
 
 $(BANNER): $(BANNER_PNG) $(BANNER_WAV) $(BANNER_VALIDATOR)
 	@$(BANNERTOOL) makebanner -i $(BANNER_PNG) -a $(BANNER_WAV) -o $@

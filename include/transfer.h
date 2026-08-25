@@ -65,6 +65,7 @@ typedef struct {
     uint64_t state_changed_ms;
     uint64_t last_activity_ms;
     FILE *file;
+    bool owns_part_file;
     LsSha256 sha256;
 } LsIncomingTransfer;
 

@@ -432,6 +432,49 @@ static LsDeviceType parse_device_type(const char *value) {
     return LS_DEVICE_DESKTOP;
 }
 
+static bool valid_peer_display_text(const char *value, bool allow_empty) {
+    const unsigned char *current = (const unsigned char *)value;
+    if (value == NULL || (!allow_empty && value[0] == '\0')) return false;
+    while (*current != '\0') {
+        if (*current < 0x20u || *current == 0x7fu) return false;
+        /* U+0080..U+009F are the UTF-8-encoded C1 control range. */
+        if (*current == 0xc2u && current[1] >= 0x80u && current[1] <= 0x9fu) {
+            return false;
+        }
+        ++current;
+    }
+    return true;
+}
+
+static bool parse_version_component(const char **cursor, uint32_t *value) {
+    const unsigned char *current = (const unsigned char *)*cursor;
+    uint32_t parsed = 0;
+    if (!isdigit(*current)) return false;
+    if (*current == '0' && isdigit(current[1])) return false;
+    do {
+        uint32_t digit = (uint32_t)(*current - '0');
+        if (parsed > (UINT32_MAX - digit) / 10u) return false;
+        parsed = parsed * 10u + digit;
+        ++current;
+    } while (isdigit(*current));
+    *cursor = (const char *)current;
+    *value = parsed;
+    return true;
+}
+
+static bool compatible_protocol_version(const char *version) {
+    const char *cursor = version;
+    uint32_t major;
+    uint32_t minor;
+    if (version == NULL || !parse_version_component(&cursor, &major) ||
+        *cursor++ != '.' || !parse_version_component(&cursor, &minor) ||
+        *cursor != '\0') {
+        return false;
+    }
+    (void)minor;
+    return major == 2u;
+}
+
 LsParseResult ls_protocol_parse_device(const char *json, size_t length,
                                        const char *source_ip, LsDevice *out) {
     JsonCursor cursor;
@@ -544,7 +587,11 @@ LsParseResult ls_protocol_parse_device(const char *json, size_t length,
         out->alias[0] == '\0' || out->fingerprint[0] == '\0') {
         return LS_PARSE_MISSING_FIELD;
     }
-    if (out->version[0] != '2' || out->version[1] != '.') {
+    if (!valid_peer_display_text(out->alias, false) ||
+        !valid_peer_display_text(out->device_model, true)) {
+        return LS_PARSE_INVALID_VALUE;
+    }
+    if (!compatible_protocol_version(out->version)) {
         return LS_PARSE_UNSUPPORTED_VERSION;
     }
     if (source_ip != NULL) {

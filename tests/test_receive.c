@@ -196,11 +196,13 @@ static void test_transfer_state_and_files(void) {
     assert(!ls_transfer_validate_upload(&transfer, "127.0.0.1", transfer.session_id,
                                         "file-1", "wrong"));
     assert(ls_transfer_begin_stream(&transfer, 5, true, 4));
+    assert(transfer.owns_part_file);
     assert(ls_transfer_write(&transfer, "he", 2, 5));
     assert(ls_transfer_write(&transfer, "llo", 3, 6));
     strcpy(saved_path, transfer.final_path);
     assert(ls_transfer_finish(&transfer, 7) == LS_TRANSFER_FINISH_SUCCESS);
     assert(transfer.state == LS_TRANSFER_COMPLETED);
+    assert(!transfer.owns_part_file);
     assert(access(transfer.part_path, F_OK) != 0);
     read_file(saved_path, contents, sizeof(contents));
     assert(strcmp(contents, "hello") == 0);
@@ -244,6 +246,24 @@ static void test_transfer_state_and_files(void) {
     ls_transfer_cancel(&transfer, "test cancel", 34);
     assert(transfer.state == LS_TRANSFER_CANCELLED);
     assert(access(transfer.part_path, F_OK) != 0);
+    assert(rmdir(directory) == 0);
+}
+
+static void test_unowned_partial_is_never_removed(void) {
+    char directory_template[] = "/tmp/localsend3ds-unowned-part.XXXXXX";
+    char *directory = mkdtemp(directory_template);
+    LsPrepareUploadRequest request = parsed_prepare();
+    LsIncomingTransfer transfer;
+    assert(directory != NULL);
+    ls_transfer_init(&transfer);
+    assert(ls_transfer_begin_request(&transfer, &request, "127.0.0.1", 1));
+    assert(ls_transfer_accept(&transfer, directory, 2));
+    assert(!transfer.owns_part_file);
+    create_empty_file(transfer.part_path);
+    assert(!ls_transfer_begin_stream(&transfer, request.file.size, true, 3));
+    assert(!transfer.owns_part_file);
+    assert(access(transfer.part_path, F_OK) == 0);
+    assert(unlink(transfer.part_path) == 0);
     assert(rmdir(directory) == 0);
 }
 
@@ -481,6 +501,7 @@ void run_receive_tests(void) {
     test_filename_and_collisions();
     test_sha256();
     test_transfer_state_and_files();
+    test_unowned_partial_is_never_removed();
     test_http_receive_chunked();
     test_http_reject_and_invalid_token();
     test_http_quick_save();

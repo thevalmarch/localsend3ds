@@ -78,7 +78,7 @@ def validate(banner_path, wav_path):
         raise ValueError("missing CWAV DATA block")
     with wave.open(wav_path, "rb") as source:
         if source.getnchannels() != EXPECTED_CHANNELS:
-            raise ValueError("source WAV must be mono")
+            raise ValueError("source WAV must be PCM16 stereo (2 channels)")
         if source.getsampwidth() != EXPECTED_SAMPLE_WIDTH:
             raise ValueError("source WAV must be PCM16")
         if source.getframerate() != EXPECTED_SAMPLE_RATE:

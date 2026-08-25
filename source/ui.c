@@ -555,7 +555,10 @@ static void render_send_home(LsApp *app) {
 }
 
 static void render_receive_home(LsApp *app) {
-    draw_bottom_header(&app->ui, "Receive", "Visible as LocalSend 3DS", true);
+    char subtitle[LS3DS_ALIAS_CAPACITY + 16];
+    (void)snprintf(subtitle, sizeof(subtitle), "Visible as %s",
+                   app->identity.alias);
+    draw_bottom_header(&app->ui, "Receive", subtitle, true);
     draw_card(14, 55, 292, 91, false);
     draw_text(&app->ui, "Ready for incoming files", 160, 67, 0.60f,
               COLOR_PRIMARY_DARK, C2D_AlignCenter, 0.0f);

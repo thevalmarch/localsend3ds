@@ -29,7 +29,15 @@ static void close_and_remove_partial(LsIncomingTransfer *transfer) {
         (void)fclose(transfer->file);
         transfer->file = NULL;
     }
-    if (transfer->part_path[0] != '\0') (void)unlink(transfer->part_path);
+    /*
+     * Only remove a partial file after this process successfully created it
+     * with O_EXCL. A stale or raced-in *.part file is treated as user data and
+     * left untouched; collision selection will choose a different path.
+     */
+    if (transfer->owns_part_file && transfer->part_path[0] != '\0') {
+        (void)unlink(transfer->part_path);
+    }
+    transfer->owns_part_file = false;
 }
 
 static bool constant_time_equal(const char *left, size_t left_capacity,
@@ -172,10 +180,14 @@ bool ls_transfer_begin_stream(LsIncomingTransfer *transfer, uint64_t declared_si
         return false;
     }
     descriptor = open(transfer->part_path, O_WRONLY | O_CREAT | O_EXCL, 0666);
-    if (descriptor >= 0) transfer->file = fdopen(descriptor, "wb");
+    if (descriptor >= 0) {
+        transfer->owns_part_file = true;
+        transfer->file = fdopen(descriptor, "wb");
+    }
     if (descriptor >= 0 && transfer->file == NULL) {
         (void)close(descriptor);
         (void)unlink(transfer->part_path);
+        transfer->owns_part_file = false;
     }
     if (transfer->file == NULL) {
         set_error(transfer, "Cannot open partial file (errno %d)", errno);
@@ -251,6 +263,7 @@ LsTransferFinishResult ls_transfer_finish(LsIncomingTransfer *transfer,
         ls_transfer_fail(transfer, "Cannot finalize partial file", now_ms);
         return LS_TRANSFER_FINISH_IO_ERROR;
     }
+    transfer->owns_part_file = false;
     transfer->state = LS_TRANSFER_COMPLETED;
     transfer->state_changed_ms = now_ms;
     transfer->last_activity_ms = now_ms;

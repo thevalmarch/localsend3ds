@@ -59,6 +59,61 @@ static void test_optional_and_unknown_fields(void) {
     assert(!device.announce);
 }
 
+static LsParseResult parse_identity_with(const char *alias, const char *model,
+                                         const char *version, LsDevice *device) {
+    char json[512];
+    int length = snprintf(json, sizeof(json),
+                          "{\"alias\":\"%s\",\"version\":\"%s\","
+                          "\"deviceModel\":\"%s\",\"fingerprint\":\"f\","
+                          "\"port\":5,\"protocol\":\"http\"}",
+                          alias, version, model);
+    assert(length > 0 && (size_t)length < sizeof(json));
+    return ls_protocol_parse_device(json, (size_t)length, NULL, device);
+}
+
+static void test_peer_display_text_validation(void) {
+    static const char *const controls[] = {
+        "Bad\\nName", "Bad\\rName", "Bad\\tName", "Bad\\bName",
+        "Bad\\fName", "Bad\\u0000Name", "Bad\\u001fName",
+        "Bad\\u007fName", "Bad\\u0085Name"
+    };
+    LsDevice device;
+    size_t i;
+    for (i = 0; i < sizeof(controls) / sizeof(controls[0]); ++i) {
+        assert(parse_identity_with(controls[i], "macOS", "2.2", &device) ==
+               LS_PARSE_INVALID_VALUE);
+        assert(parse_identity_with("Mac", controls[i], "2.2", &device) ==
+               LS_PARSE_INVALID_VALUE);
+    }
+    assert(parse_identity_with("G\xC3\xBCzel \xE2\x98\x83",
+                               "MacBook Pro \xE2\x80\x94 M4", "2.2", &device) ==
+           LS_PARSE_OK);
+    assert(strcmp(device.alias, "G\xC3\xBCzel \xE2\x98\x83") == 0);
+    assert(strcmp(device.device_model, "MacBook Pro \xE2\x80\x94 M4") == 0);
+    assert(parse_identity_with("Mac", "Bad \xC0\xAF", "2.2", &device) ==
+           LS_PARSE_INVALID_VALUE);
+}
+
+static void test_protocol_versions(void) {
+    static const char *const valid[] = {
+        "2.0", "2.2", "2.10", "2.4294967295"
+    };
+    static const char *const invalid[] = {
+        "2.bad", "2.", ".2", "version", "2.4294967296",
+        "4294967296.2", "2.2.1", "+2.2", "2.-1", "2.02", "3.0"
+    };
+    LsDevice device;
+    size_t i;
+    for (i = 0; i < sizeof(valid) / sizeof(valid[0]); ++i) {
+        assert(parse_identity_with("Mac", "macOS", valid[i], &device) ==
+               LS_PARSE_OK);
+    }
+    for (i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        assert(parse_identity_with("Mac", "macOS", invalid[i], &device) ==
+               LS_PARSE_UNSUPPORTED_VERSION);
+    }
+}
+
 static void test_rejects_malformed(void) {
     const char duplicate[] =
         "{\"alias\":\"a\",\"alias\":\"b\",\"version\":\"2.2\","
@@ -245,6 +300,8 @@ static void test_parser_random_bytes(void) {
 int main(void) {
     test_parse_valid();
     test_optional_and_unknown_fields();
+    test_peer_display_text_validation();
+    test_protocol_versions();
     test_rejects_malformed();
     test_length_limit();
     test_serialization_round_trip();
