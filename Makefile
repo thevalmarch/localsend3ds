@@ -7,6 +7,10 @@ endif
 TOPDIR ?= $(CURDIR)
 include $(DEVKITARM)/3ds_rules
 
+ifeq ($(wildcard $(PORTLIBS)/lib/libmbedtls.a),)
+$(error 3ds-mbedtls is missing. Install the official devkitPro 3ds-mbedtls package)
+endif
+
 TARGET      := LocalSend3DS
 BUILD       := build
 SOURCES     := source
@@ -23,8 +27,8 @@ CFLAGS      := -g -Wall -Wextra -Werror -Wstack-usage=4096 -O2 -mword-relocation
 CFLAGS      += $(INCLUDE) -D__3DS__ -std=gnu11
 ASFLAGS     := -g $(ARCH)
 LDFLAGS     := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
-LIBS        := -lcitro2d -lcitro3d -lctru -lm
-LIBDIRS     := $(CTRULIB)
+LIBS        := -lmbedtls -lmbedx509 -lmbedcrypto -lcitro2d -lcitro3d -lctru -lm
+LIBDIRS     := $(CTRULIB) $(PORTLIBS)
 
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 

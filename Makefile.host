@@ -1,15 +1,21 @@
 HOST_CC ?= cc
 HOST_BUILD := build-host
+HOST_MBEDTLS_PREFIX ?= $(shell command -v brew >/dev/null 2>&1 && brew --prefix mbedtls@2 2>/dev/null)
+ifneq ($(strip $(HOST_MBEDTLS_PREFIX)),)
+HOST_MBEDTLS_FLAGS := -I$(HOST_MBEDTLS_PREFIX)/include -L$(HOST_MBEDTLS_PREFIX)/lib
+endif
 HOST_CFLAGS := -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic -Werror -O1 -g \
-               -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude
+               -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isource \
+               $(HOST_MBEDTLS_FLAGS)
+HOST_LIBS := -lmbedtls -lmbedx509 -lmbedcrypto
 HOST_SOURCES := source/localsend_protocol.c source/device_registry.c source/http_server.c \
                 source/discovery.c source/filesystem.c source/transfer.c source/sha256.c \
                 source/secure_random.c source/file_browser.c source/http_response.c \
                 source/socket_compat.c source/outgoing_transfer.c source/ui_model.c
-HOST_SOURCES += source/settings.c
+HOST_SOURCES += source/settings.c source/tls_identity.c source/outgoing_transport.c
 HOST_TEST_SOURCES := tests/test_main.c tests/test_receive.c tests/test_outgoing.c \
                      tests/test_ui.c tests/test_settings.c \
-                     tests/logger_stub.c
+                     tests/test_tls.c tests/logger_stub.c
 HOST_TEST := $(HOST_BUILD)/localsend3ds_tests
 
 .PHONY: test clean
@@ -18,7 +24,7 @@ test: $(HOST_TEST)
 	@$(HOST_TEST)
 
 $(HOST_TEST): $(HOST_SOURCES) $(HOST_TEST_SOURCES) | $(HOST_BUILD)
-	$(HOST_CC) $(HOST_CFLAGS) $^ -o $@
+	$(HOST_CC) $(HOST_CFLAGS) $^ $(HOST_LIBS) -o $@
 
 $(HOST_BUILD):
 	@mkdir -p $@

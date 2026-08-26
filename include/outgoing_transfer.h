@@ -9,6 +9,8 @@
 
 #include "device.h"
 #include "http_response.h"
+#include "outgoing_transport.h"
+#include "tls_identity.h"
 #include "transfer.h"
 
 #define LS3DS_OUTGOING_METADATA_CAPACITY 3072
@@ -37,7 +39,8 @@ typedef ssize_t (*LsOutgoingSendFunction)(int socket_fd, const void *data,
                                           size_t length, int flags);
 
 typedef struct {
-    int fd;
+    LsOutgoingTransport transport;
+    const LsTlsIdentity *tls_identity;
     LsOutgoingState state;
     LsOutgoingState cancel_terminal_state;
     LsDevice peer;
@@ -52,8 +55,6 @@ typedef struct {
     uint64_t state_changed_ms;
     uint64_t last_activity_ms;
     int remote_status;
-    int last_connect_so_error;
-    int last_connect_probe_error;
     FILE *file;
     char metadata[LS3DS_OUTGOING_METADATA_CAPACITY];
     char request[LS3DS_OUTGOING_REQUEST_CAPACITY];
@@ -68,6 +69,7 @@ typedef struct {
 
 void ls_outgoing_init(LsOutgoingTransfer *transfer);
 bool ls_outgoing_start(LsOutgoingTransfer *transfer, const LsDevice *identity,
+                       const LsTlsIdentity *tls_identity,
                        const LsDevice *peer, const char *file_path,
                        const char *file_name, uint64_t now_ms);
 void ls_outgoing_update(LsOutgoingTransfer *transfer, uint64_t now_ms);

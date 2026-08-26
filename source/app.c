@@ -70,6 +70,7 @@ bool ls_app_init(LsApp *app) {
     app->discovery.socket_fd = -1;
     app->http_server.listen_fd = -1;
     ls_outgoing_init(&app->outgoing);
+    ls_tls_identity_init(&app->tls_identity);
     for (i = 0; i < LS3DS_MAX_HTTP_CONNECTIONS; ++i) {
         app->http_server.clients[i].fd = -1;
     }
@@ -93,6 +94,15 @@ bool ls_app_init(LsApp *app) {
                 app->settings.auto_finish ? "on" : "off");
     } else {
         LS_LOGI("settings", "using defaults");
+    }
+    if (ls_filesystem_ensure_directory(LS3DS_SETTINGS_DIRECTORY) &&
+        ls_tls_identity_load_or_create(&app->tls_identity,
+                                       LS3DS_TLS_IDENTITY_PATH)) {
+        LS_LOGI("tls", "persistent client identity ready; fingerprint-prefix=%.8s",
+                app->tls_identity.fingerprint);
+    } else {
+        LS_LOGW("tls", "persistent client identity unavailable; HTTPS sending disabled; errno=%d",
+                errno);
     }
     if (!ls_identity_create(&app->identity)) {
         app->state = LS_APP_NETWORK_ERROR;
@@ -141,7 +151,8 @@ static void start_selected_outgoing(LsApp *app, uint64_t now_ms) {
     const LsDevice *peer = ls_registry_get(&app->registry,
                                             app->selected_device);
     if (peer == NULL) return;
-    if (ls_outgoing_start(&app->outgoing, &app->identity, peer,
+    if (ls_outgoing_start(&app->outgoing, &app->identity,
+                          &app->tls_identity, peer,
                           app->selected_file_path, app->selected_file_name,
                           now_ms)) {
         (void)snprintf(app->status_message, sizeof(app->status_message),
@@ -507,6 +518,7 @@ void ls_app_shutdown(LsApp *app) {
     if (app == NULL) return;
     LS_LOGI("app", "shutdown requested");
     stop_network_services(app);
+    ls_tls_identity_free(&app->tls_identity);
     ls_log_shutdown();
     ls_ui_shutdown(&app->ui);
     gfxExit();

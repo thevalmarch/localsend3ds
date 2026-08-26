@@ -3,6 +3,7 @@
 #include "localsend_protocol.h"
 #include "outgoing_transfer.h"
 #include "socket_compat.h"
+#include "tls_identity.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -252,7 +253,8 @@ static void run_client(MockBehavior behavior, LsOutgoingState expected_state) {
     remote = peer(mock_start(&server, behavior));
     ls_outgoing_init(&transfer);
     ls_outgoing_set_send_function(&transfer, limited_send);
-    started = ls_outgoing_start(&transfer, &local, &remote, path, "hello.txt", now++);
+    started = ls_outgoing_start(&transfer, &local, NULL, &remote, path,
+                                "hello.txt", now++);
     assert(started);
     for (iteration = 0; iteration < 10000 && ls_outgoing_is_active(&transfer); ++iteration) {
         ls_outgoing_update(&transfer, now++);
@@ -386,7 +388,7 @@ static void test_pending_cancellation(void) {
     write_test_file(path);
     remote = peer(mock_start(&server, MOCK_NORMAL));
     ls_outgoing_init(&transfer);
-    action_result = ls_outgoing_start(&transfer, &local, &remote, path,
+    action_result = ls_outgoing_start(&transfer, &local, NULL, &remote, path,
                                       "hello.txt", now++);
     assert(action_result);
     for (iteration = 0; iteration < 1000 &&
@@ -403,7 +405,7 @@ static void test_pending_cancellation(void) {
     assert(rmdir(directory) == 0);
 }
 
-static void test_https_peer_is_not_downgraded(void) {
+static void test_https_requires_identity_and_valid_fingerprint(void) {
     static LsOutgoingTransfer transfer;
     char directory_template[] = "/tmp/localsend3ds-https.XXXXXX";
     char *directory = mkdtemp(directory_template);
@@ -415,10 +417,13 @@ static void test_https_peer_is_not_downgraded(void) {
     write_test_file(path);
     remote.protocol = LS_PROTOCOL_HTTPS;
     ls_outgoing_init(&transfer);
-    assert(!ls_outgoing_start(&transfer, &local, &remote, path, "hello.txt", 1));
+    strcpy(remote.fingerprint,
+           "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF");
+    assert(!ls_outgoing_start(&transfer, &local, NULL, &remote, path,
+                              "hello.txt", 1));
     assert(transfer.state == LS_OUTGOING_FAILED);
     assert(strstr(transfer.error, "HTTPS") != NULL);
-    assert(transfer.fd < 0);
+    assert(transfer.transport.fd < 0);
     assert(unlink(path) == 0);
     assert(rmdir(directory) == 0);
 }
@@ -456,7 +461,7 @@ static void test_active_cancellation(void) {
     write_test_file(path);
     remote = peer(mock_start(&server, MOCK_NORMAL));
     ls_outgoing_init(&transfer);
-    action_result = ls_outgoing_start(&transfer, &local, &remote, path,
+    action_result = ls_outgoing_start(&transfer, &local, NULL, &remote, path,
                                       "hello.txt", now++);
     assert(action_result);
     for (iteration = 0; iteration < 5000 && transfer.session_id[0] == '\0'; ++iteration) {
@@ -489,6 +494,6 @@ void run_outgoing_tests(void) {
     run_client(MOCK_INTERRUPT_UPLOAD, LS_OUTGOING_FAILED);
     test_pending_cancellation();
     test_active_cancellation();
-    test_https_peer_is_not_downgraded();
+    test_https_requires_identity_and_valid_fingerprint();
     test_3ds_nonblocking_connect_completion();
 }

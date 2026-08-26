@@ -21,6 +21,7 @@ void run_receive_tests(void);
 void run_outgoing_tests(void);
 void run_ui_tests(void);
 void run_settings_tests(void);
+void run_tls_tests(void);
 
 static LsDevice parsed_device(void) {
     LsDevice device;
@@ -313,6 +314,7 @@ int main(void) {
     run_outgoing_tests();
     run_ui_tests();
     run_settings_tests();
+    run_tls_tests();
     puts("All LocalSend3DS host tests passed.");
     return 0;
 }

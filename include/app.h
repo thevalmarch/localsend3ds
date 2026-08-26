@@ -14,6 +14,7 @@
 #include "network.h"
 #include "outgoing_transfer.h"
 #include "settings.h"
+#include "tls_identity.h"
 #include "ui.h"
 
 typedef enum {
@@ -37,6 +38,7 @@ typedef struct LsApp {
     LsDeviceRegistry registry;
     LsFileBrowser file_browser;
     LsSettings settings;
+    LsTlsIdentity tls_identity;
     LsUi ui;
     size_t selected_device;
     size_t selected_setting;

@@ -255,7 +255,16 @@ static const char *friendly_outgoing_error(const LsOutgoingTransfer *transfer) {
     if (transfer->state == LS_OUTGOING_REJECTED) return "The recipient declined this transfer.";
     if (transfer->state == LS_OUTGOING_CANCELLED) return "Transfer cancelled.";
     if (strstr(transfer->error, "timed out") != NULL) return "The connection timed out. Try again.";
-    if (strstr(transfer->error, "HTTPS") != NULL) return "Encrypted recipients are not supported yet.";
+    if (strstr(transfer->error, "HTTPS identity") != NULL) {
+        return "Secure transfer identity is unavailable.";
+    }
+    if (strstr(transfer->error, "certificate is not yet valid") != NULL) {
+        return "Check the console date and time.";
+    }
+    if (strstr(transfer->error, "fingerprint") != NULL) {
+        return "Recipient security check failed.";
+    }
+    if (strstr(transfer->error, "TLS") != NULL) return "Secure connection failed.";
     return "Could not complete the transfer. Try again.";
 }
 

@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install host TLS test dependency
+        run: sudo apt-get update && sudo apt-get install -y libmbedtls-dev
       - name: Run portable tests
         run: make -f Makefile.host test
 

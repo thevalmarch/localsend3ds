@@ -23,6 +23,7 @@
 #define LS3DS_DOWNLOAD_DIRECTORY "sdmc:/3ds/LocalSend/Downloads"
 #define LS3DS_SETTINGS_DIRECTORY "sdmc:/3ds/LocalSend"
 #define LS3DS_SETTINGS_PATH LS3DS_SETTINGS_DIRECTORY "/settings.conf"
+#define LS3DS_TLS_IDENTITY_PATH LS3DS_SETTINGS_DIRECTORY "/tls-identity.bin"
 #define LS3DS_AUTO_FINISH_DELAY_MS 2500ULL
 #define LS3DS_LOG_DIRECTORY "sdmc:/3ds/LocalSend/logs"
 #define LS3DS_LOG_PATH LS3DS_LOG_DIRECTORY "/latest.log"

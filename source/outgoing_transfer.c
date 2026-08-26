@@ -1,24 +1,17 @@
 #include "outgoing_transfer.h"
 
-#include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include "config.h"
 #include "filesystem.h"
 #include "logger.h"
 #include "localsend_protocol.h"
 #include "secure_random.h"
-#include "socket_compat.h"
 
 #define LS3DS_OUTGOING_CONNECT_TIMEOUT_MS 10000ULL
 #define LS3DS_OUTGOING_IO_TIMEOUT_MS 30000ULL
@@ -40,14 +33,8 @@ static const char *connection_phase(LsOutgoingState state) {
     }
 }
 
-static ssize_t default_send(int socket_fd, const void *data, size_t length,
-                            int flags) {
-    return send(socket_fd, data, length, flags);
-}
-
 static void close_socket(LsOutgoingTransfer *transfer) {
-    if (transfer->fd >= 0) close(transfer->fd);
-    transfer->fd = -1;
+    ls_outgoing_transport_close(&transfer->transport);
 }
 
 static void close_file(LsOutgoingTransfer *transfer) {
@@ -79,11 +66,11 @@ static void set_error(LsOutgoingTransfer *transfer, const char *format, ...) {
 static void fail_transfer(LsOutgoingTransfer *transfer, uint64_t now_ms,
                           const char *format, ...) {
     va_list arguments;
-    close_socket(transfer);
-    close_file(transfer);
     va_start(arguments, format);
     (void)vsnprintf(transfer->error, sizeof(transfer->error), format, arguments);
     va_end(arguments);
+    close_socket(transfer);
+    close_file(transfer);
     if (transfer->session_id[0] != '\0' &&
         !(transfer->state >= LS_OUTGOING_CONNECTING_CANCEL &&
           transfer->state <= LS_OUTGOING_WAITING_FOR_CANCEL_RESPONSE)) {
@@ -140,77 +127,27 @@ static void finish_cancel(LsOutgoingTransfer *transfer, uint64_t now_ms,
     }
 }
 
-static bool set_nonblocking(int socket_fd) {
-    int flags = fcntl(socket_fd, F_GETFL, 0);
-    return flags >= 0 && fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK) == 0;
-}
-
-static bool peer_address(const LsOutgoingTransfer *transfer,
-                         struct sockaddr_in *address) {
-    memset(address, 0, sizeof(*address));
-    address->sin_family = AF_INET;
-    address->sin_port = htons(transfer->peer.port);
-    return inet_pton(AF_INET, transfer->peer.ip_address, &address->sin_addr) == 1;
-}
-
 static bool begin_connection(LsOutgoingTransfer *transfer,
                              LsOutgoingState connecting_state,
                              LsOutgoingState connected_state,
                              uint64_t now_ms) {
-    struct sockaddr_in address;
-    int result;
+    (void)connected_state;
     close_socket(transfer);
-    transfer->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (transfer->fd < 0) {
-        LS_LOGE("outgoing", "socket creation failed; phase=%s family=AF_INET type=SOCK_STREAM protocol=TCP errno=%d",
-                connection_phase(connecting_state), errno);
+    ls_outgoing_transport_set_plain_send(&transfer->transport,
+                                         transfer->send_function);
+    if (!ls_outgoing_transport_begin(&transfer->transport, &transfer->peer,
+                                     transfer->tls_identity)) {
+        LS_LOGE("outgoing", "transport connection start failed; phase=%s destination=%s:%u protocol=%s errno=%d detail=%.100s",
+                connection_phase(connecting_state), transfer->peer.ip_address,
+                (unsigned)transfer->peer.port,
+                transfer->peer.protocol == LS_PROTOCOL_HTTPS ? "https" : "http",
+                errno, transfer->transport.error);
         return false;
     }
-    LS_LOGD("outgoing", "socket created; phase=%s fd=%d family=AF_INET type=SOCK_STREAM protocol=TCP",
-            connection_phase(connecting_state), transfer->fd);
-    if (!set_nonblocking(transfer->fd)) {
-        int nonblocking_error = errno;
-        LS_LOGE("outgoing", "nonblocking setup failed; phase=%s fd=%d api=fcntl errno=%d",
-                connection_phase(connecting_state), transfer->fd, nonblocking_error);
-        close_socket(transfer);
-        errno = nonblocking_error;
-        return false;
-    }
-#ifdef SO_NOSIGPIPE
-    {
-        int enabled = 1;
-        (void)setsockopt(transfer->fd, SOL_SOCKET, SO_NOSIGPIPE,
-                         &enabled, sizeof(enabled));
-    }
-#endif
-    if (!peer_address(transfer, &address)) {
-        close_socket(transfer);
-        errno = EINVAL;
-        return false;
-    }
-    transfer->last_connect_so_error = INT_MIN;
-    transfer->last_connect_probe_error = INT_MIN;
-    errno = 0;
-    result = connect(transfer->fd, (const struct sockaddr *)&address,
-                     sizeof(address));
-    {
-        int connect_error = result < 0 ? errno : 0;
-        LsSocketConnectResult connect_result =
-            ls_socket_classify_connect_result(result, connect_error);
-        LS_LOGD("outgoing", "connect issued; phase=%s fd=%d destination=%s:%u protocol=http result=%d errno=%d",
-                connection_phase(connecting_state), transfer->fd,
-                transfer->peer.ip_address, (unsigned)transfer->peer.port,
-                result, connect_error);
-        if (connect_result == LS_SOCKET_CONNECT_COMPLETE) {
-            set_state(transfer, connected_state, now_ms);
-            return true;
-        }
-        if (connect_result == LS_SOCKET_CONNECT_FAILED) {
-            close_socket(transfer);
-            errno = connect_error;
-            return false;
-        }
-    }
+    LS_LOGD("outgoing", "transport connection issued; phase=%s fd=%d destination=%s:%u protocol=%s",
+            connection_phase(connecting_state), transfer->transport.fd,
+            transfer->peer.ip_address, (unsigned)transfer->peer.port,
+            transfer->peer.protocol == LS_PROTOCOL_HTTPS ? "https" : "http");
     set_state(transfer, connecting_state, now_ms);
     return true;
 }
@@ -225,90 +162,26 @@ static LsOutgoingState connected_state(LsOutgoingState state) {
 }
 
 static void update_connect(LsOutgoingTransfer *transfer, uint64_t now_ms) {
-    fd_set write_set;
-    struct timeval timeout = {0, 0};
-    int socket_error = 0;
-    socklen_t error_length = sizeof(socket_error);
-    int ready;
-    FD_ZERO(&write_set);
-    FD_SET(transfer->fd, &write_set);
-    ready = select(transfer->fd + 1, NULL, &write_set, NULL, &timeout);
-    if (ready < 0) {
+    LsTransportConnectResult result = ls_outgoing_transport_poll(
+        &transfer->transport, &transfer->peer);
+    if (result == LS_TRANSPORT_CONNECT_PENDING) return;
+    if (result == LS_TRANSPORT_CONNECT_FAILED) {
         if (transfer->state == LS_OUTGOING_CONNECTING_CANCEL) {
             finish_cancel(transfer, now_ms, 0);
         } else {
-            fail_transfer(transfer, now_ms, "Connection check failed (errno %d)", errno);
+            fail_transfer(transfer, now_ms, "Connection failed (%s; code %d)",
+                          transfer->transport.error[0] != '\0' ?
+                              transfer->transport.error : "network error",
+                          transfer->transport.last_error != 0 ?
+                              transfer->transport.last_error : errno);
         }
         return;
     }
-    if (ready == 0) return;
-#ifdef __3DS__
-    {
-        struct sockaddr_in address;
-        int so_result;
-        int so_call_error;
-        int probe_result;
-        int probe_error;
-        LsSocketConnectResult connect_result;
-
-        /*
-         * SOC:u leaves its raw -26 (EINPROGRESS) value in SO_ERROR even after
-         * poll/select reports a completed connection. Reissuing connect() is
-         * the established libctru-compatible completion probe: EISCONN means
-         * the TCP connection is established, while real failures remain
-         * available through errno.
-         */
-        errno = 0;
-        so_result = getsockopt(transfer->fd, SOL_SOCKET, SO_ERROR, &socket_error,
-                               &error_length);
-        so_call_error = so_result < 0 ? errno : 0;
-        if (!peer_address(transfer, &address)) {
-            fail_transfer(transfer, now_ms, "Invalid recipient IPv4 address");
-            return;
-        }
-        errno = 0;
-        probe_result = connect(transfer->fd, (const struct sockaddr *)&address,
-                               sizeof(address));
-        probe_error = probe_result < 0 ? errno : 0;
-        connect_result = ls_socket_classify_connect_result(probe_result, probe_error);
-        if (socket_error != transfer->last_connect_so_error ||
-            probe_error != transfer->last_connect_probe_error) {
-            LS_LOGD("outgoing", "3DS connect check; phase=%s fd=%d select=%d so-result=%d so-errno=%d so-error=%d%s probe-result=%d probe-errno=%d",
-                    connection_phase(transfer->state), transfer->fd, ready,
-                    so_result, so_call_error, socket_error,
-                    ls_socket_is_3ds_stale_in_progress(socket_error) ?
-                        " (raw SOC EINPROGRESS)" : "",
-                    probe_result, probe_error);
-            transfer->last_connect_so_error = socket_error;
-            transfer->last_connect_probe_error = probe_error;
-        }
-        if (connect_result == LS_SOCKET_CONNECT_PENDING) return;
-        if (connect_result == LS_SOCKET_CONNECT_FAILED) {
-            if (transfer->state == LS_OUTGOING_CONNECTING_CANCEL) {
-                finish_cancel(transfer, now_ms, 0);
-            } else {
-                fail_transfer(transfer, now_ms,
-                              "Connection failed (connect errno %d; raw SO_ERROR %d)",
-                              probe_error, socket_error);
-            }
-            return;
-        }
-    }
-#else
-    if (getsockopt(transfer->fd, SOL_SOCKET, SO_ERROR, &socket_error,
-                   &error_length) != 0 || socket_error != 0) {
-        if (transfer->state == LS_OUTGOING_CONNECTING_CANCEL) {
-            finish_cancel(transfer, now_ms, 0);
-        } else {
-            fail_transfer(transfer, now_ms, "Connection failed (errno %d)",
-                          socket_error != 0 ? socket_error : errno);
-        }
-        return;
-    }
-#endif
-    LS_LOGI("outgoing", "TCP connection established; phase=%s fd=%d destination=%s:%u protocol=http",
-            connection_phase(transfer->state), transfer->fd,
-            transfer->peer.ip_address, (unsigned)transfer->peer.port);
+    LS_LOGI("outgoing", "%s connection established; phase=%s fd=%d destination=%s:%u fingerprint-pinned=%s",
+            transfer->peer.protocol == LS_PROTOCOL_HTTPS ? "TLS" : "HTTP",
+            connection_phase(transfer->state), transfer->transport.fd,
+            transfer->peer.ip_address, (unsigned)transfer->peer.port,
+            transfer->peer.protocol == LS_PROTOCOL_HTTPS ? "yes" : "n/a");
     set_state(transfer, connected_state(transfer->state), now_ms);
 }
 
@@ -402,12 +275,10 @@ static bool build_cancel_request(LsOutgoingTransfer *transfer) {
 void ls_outgoing_init(LsOutgoingTransfer *transfer) {
     if (transfer == NULL) return;
     memset(transfer, 0, sizeof(*transfer));
-    transfer->fd = -1;
+    ls_outgoing_transport_init(&transfer->transport);
     transfer->state = LS_OUTGOING_IDLE;
     transfer->cancel_terminal_state = LS_OUTGOING_CANCELLED;
-    transfer->last_connect_so_error = INT_MIN;
-    transfer->last_connect_probe_error = INT_MIN;
-    transfer->send_function = default_send;
+    transfer->send_function = NULL;
 }
 
 bool ls_outgoing_is_active(const LsOutgoingTransfer *transfer) {
@@ -416,6 +287,7 @@ bool ls_outgoing_is_active(const LsOutgoingTransfer *transfer) {
 }
 
 bool ls_outgoing_start(LsOutgoingTransfer *transfer, const LsDevice *identity,
+                       const LsTlsIdentity *tls_identity,
                        const LsDevice *peer, const char *file_path,
                        const char *file_name, uint64_t now_ms) {
     struct stat status;
@@ -425,13 +297,15 @@ bool ls_outgoing_start(LsOutgoingTransfer *transfer, const LsDevice *identity,
     size_t path_length;
     if (transfer == NULL || identity == NULL || peer == NULL || file_path == NULL ||
         file_name == NULL || ls_outgoing_is_active(transfer)) return false;
-    send_function = transfer->send_function != NULL ? transfer->send_function : default_send;
+    send_function = transfer->send_function;
     ls_outgoing_abort(transfer);
     ls_outgoing_init(transfer);
     transfer->send_function = send_function;
+    transfer->tls_identity = tls_identity;
     transfer->peer = *peer;
-    if (peer->protocol != LS_PROTOCOL_HTTP) {
-        set_error(transfer, "HTTPS recipient unsupported; disable encryption on recipient");
+    if (peer->protocol == LS_PROTOCOL_HTTPS &&
+        (tls_identity == NULL || tls_identity->implementation == NULL)) {
+        set_error(transfer, "HTTPS identity is unavailable");
         set_state(transfer, LS_OUTGOING_FAILED, now_ms);
         return false;
     }
@@ -454,13 +328,20 @@ bool ls_outgoing_start(LsOutgoingTransfer *transfer, const LsDevice *identity,
         return false;
     }
     ls_http_response_init(&transfer->response);
-    LS_LOGI("outgoing", "prepare-upload starting; peer=%.64s ip=%s port=%u file=%.96s bytes=%llu",
+    LS_LOGI("outgoing", "prepare-upload starting; peer=%.64s ip=%s port=%u protocol=%s file=%.96s bytes=%llu",
             peer->alias, peer->ip_address, (unsigned)peer->port,
+            peer->protocol == LS_PROTOCOL_HTTPS ? "https" : "http",
             transfer->file_name, (unsigned long long)transfer->file_size);
     if (!begin_connection(transfer, LS_OUTGOING_CONNECTING_PREPARE,
                           LS_OUTGOING_SENDING_PREPARE, now_ms)) {
-        fail_transfer(transfer, now_ms, "Could not connect for prepare-upload (errno %d)",
-                      errno);
+        char detail[sizeof(transfer->transport.error)];
+        (void)snprintf(detail, sizeof(detail), "%s",
+                       transfer->transport.error[0] != '\0' ?
+                           transfer->transport.error : "network error");
+        fail_transfer(transfer, now_ms,
+                      "Could not connect for prepare-upload: %s (code %d)",
+                      detail, transfer->transport.last_error != 0 ?
+                                  transfer->transport.last_error : errno);
         return false;
     }
     return true;
@@ -484,9 +365,9 @@ static void request_sent(LsOutgoingTransfer *transfer, uint64_t now_ms) {
 }
 
 static void update_request_write(LsOutgoingTransfer *transfer, uint64_t now_ms) {
-    ssize_t sent = transfer->send_function(
-        transfer->fd, transfer->request + transfer->request_sent,
-        transfer->request_length - transfer->request_sent, 0);
+    ssize_t sent = ls_outgoing_transport_write(
+        &transfer->transport, transfer->request + transfer->request_sent,
+        transfer->request_length - transfer->request_sent);
     if (sent < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             if (transfer->state == LS_OUTGOING_SENDING_CANCEL) {
@@ -519,10 +400,19 @@ static void begin_upload(LsOutgoingTransfer *transfer, uint64_t now_ms) {
         fail_transfer(transfer, now_ms, "Selected file changed or could not be opened");
         return;
     }
-    if (!build_upload_request(transfer) ||
-        !begin_connection(transfer, LS_OUTGOING_CONNECTING_UPLOAD,
+    if (!build_upload_request(transfer)) {
+        fail_transfer(transfer, now_ms, "Could not build upload request");
+        return;
+    }
+    if (!begin_connection(transfer, LS_OUTGOING_CONNECTING_UPLOAD,
                           LS_OUTGOING_SENDING_UPLOAD_HEADERS, now_ms)) {
-        fail_transfer(transfer, now_ms, "Could not connect for upload (errno %d)", errno);
+        char detail[sizeof(transfer->transport.error)];
+        (void)snprintf(detail, sizeof(detail), "%s",
+                       transfer->transport.error[0] != '\0' ?
+                           transfer->transport.error : "network error");
+        fail_transfer(transfer, now_ms, "Could not connect for upload: %s (code %d)",
+                      detail, transfer->transport.last_error != 0 ?
+                                  transfer->transport.last_error : errno);
     }
 }
 
@@ -589,8 +479,8 @@ static void handle_complete_response(LsOutgoingTransfer *transfer,
 }
 
 static void update_response_read(LsOutgoingTransfer *transfer, uint64_t now_ms) {
-    ssize_t received = recv(transfer->fd, transfer->io_buffer,
-                            sizeof(transfer->io_buffer), 0);
+    ssize_t received = ls_outgoing_transport_read(
+        &transfer->transport, transfer->io_buffer, sizeof(transfer->io_buffer));
     LsHttpResponseResult result;
     if (received < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -642,9 +532,9 @@ static void update_file_stream(LsOutgoingTransfer *transfer, uint64_t now_ms) {
         }
     }
     {
-        ssize_t sent = transfer->send_function(
-            transfer->fd, transfer->io_buffer + transfer->io_sent,
-            transfer->io_length - transfer->io_sent, 0);
+        ssize_t sent = ls_outgoing_transport_write(
+            &transfer->transport, transfer->io_buffer + transfer->io_sent,
+            transfer->io_length - transfer->io_sent);
         if (sent < 0) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 fail_transfer(transfer, now_ms, "Upload connection lost (errno %d)", errno);
@@ -749,7 +639,7 @@ void ls_outgoing_reset(LsOutgoingTransfer *transfer) {
 void ls_outgoing_set_send_function(LsOutgoingTransfer *transfer,
                                    LsOutgoingSendFunction function) {
     if (transfer != NULL && !ls_outgoing_is_active(transfer)) {
-        transfer->send_function = function != NULL ? function : default_send;
+        transfer->send_function = function;
     }
 }
 
