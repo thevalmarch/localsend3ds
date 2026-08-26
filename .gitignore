@@ -1,3 +1,4 @@
+# Build outputs
 build/
 build-host/
 *.3dsx
@@ -6,8 +7,24 @@ build-host/
 *.smdh
 *.o
 *.d
-.DS_Store
+*.cia
+*.dSYM/
+
+# Host analysis and local hardware diagnostics
 /*.plist
-/latest*.log
+/*.log
 /crash*.jpg
+/lookatthat.jpg
+/settings-toggle-*
 /previews/
+
+# OS, editors, and local AI tooling
+.DS_Store
+._*
+.idea/
+.vscode/
+.claude/
+.codex/
+*.swp
+*.swo
+*~
