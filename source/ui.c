@@ -583,7 +583,8 @@ static void render_settings(LsApp *app) {
         LsSettingsItem item = (LsSettingsItem)(start + row);
         LsUiRect row_rect = {8, 49 + (int)(37 * row), 276, 35};
         char bounded_value[LS3DS_ALIAS_CAPACITY];
-        const char *value = settings_value(app, item);
+        const char *value = item == LS_SETTING_AUTHOR ? "Val March" :
+                            settings_value(app, item);
         draw_card((float)row_rect.x, (float)row_rect.y,
                   (float)row_rect.width, (float)row_rect.height,
                   start + row == app->selected_setting);
