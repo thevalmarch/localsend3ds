@@ -1,4 +1,9 @@
-# Cross-build report
+# Historical cross-build report — 2026-08-25
+
+This document records a specific development build and its environment. Its
+artifact sizes and hashes are retained for engineering history; they are not
+current release artifacts or v1.0.0 release checksums. Final release artifacts
+must be produced and measured again from the release commit.
 
 Build date: 2026-08-25 (Europe/Istanbul)
 
@@ -75,12 +80,14 @@ macOS requires an administrator password for installation under
 Citro2D, Citro3D, 3dsxtool, and smdhtool packages and produces a standard
 hardware artifact.
 
-The protocol behavior underneath the renderer is unchanged: startup,
+The protocol behavior underneath the renderer was unchanged: startup,
 discovery, hardware-model identity, incoming/outgoing HTTP sessions, token
 validation, bounded file streaming, and the SOC:u nonblocking-connect workaround
 remain in their existing modules. The user has verified one-file transfer in
-both directions on a real New Nintendo 2DS XL. The graphical interface itself
-is not yet verified on hardware.
+both directions on a real New Nintendo 2DS XL. Subsequent real-hardware testing
+also verified the graphical interface, Settings persistence, and native CIA
+HOME Menu launch; see `compatibility.md` and `testing.md` for the current
+verification record.
 
 The application reports version `v1.0.0`. Its LocalSend identity uses the
 standard protocol `desktop` device type while continuing to advertise the exact

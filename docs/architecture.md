@@ -16,7 +16,7 @@ main / app scenes / input / Citro2D dual-screen UI
               POSIX-compatible libctru sockets + SD
 ```
 
-## Current slice
+## Current implementation
 
 - `main.c` owns process entry only.
 - `app.c` owns lifecycle, the small scene state, input, and service ordering.
@@ -69,13 +69,14 @@ primitives.
 
 Settings are represented by a small platform-independent `LsSettings` model.
 Changes are written immediately through a temporary file to
-`sdmc:/3ds/LocalSend/settings.conf`; startup falls back to conservative defaults
-if the file is absent or malformed. The editable alias is copied into the
-announced `LsDevice` identity. Quick Save invokes the same secure prepare-upload
-approval/session path as manual acceptance, and Auto Finish only dismisses
-successful terminal states after a fixed 2.5-second display interval.
+`sdmc:/3ds/LocalSend/settings.conf`; startup recovers a valid backup when the
+primary file is malformed, then falls back to conservative defaults if neither
+copy is valid. The editable alias is copied into the announced `LsDevice`
+identity. Quick Save invokes the same secure prepare-upload approval/session
+path as manual acceptance, and Auto Finish only dismisses successful terminal
+states after a fixed 2.5-second display interval.
 
-## Receive-MVP extension
+## Incoming transfer path
 
 The first receive slice remains single-threaded and nonblocking at the socket
 layer. At most one 32 KiB body chunk is received and written during a connection
@@ -89,7 +90,7 @@ display name, sanitized final path, exclusive-created `.part` path,
 expected/received 64-bit sizes, and incremental SHA-256 context. Only an
 accepted session with matching session/file/token and peer IP may receive bytes.
 
-## Outgoing-MVP extension
+## Outgoing transfer path
 
 One `LsOutgoingTransfer` owns a copied peer identity, one selected SD path,
 random file ID, bounded request/response buffers, remote session/token, file
@@ -120,5 +121,6 @@ tests/                    host unit/integration tests
 docs/                     feasibility, protocol, testing, compatibility
 scripts/                  developer environment checks
 .github/workflows/        host and cross-build CI
-assets/                   later icon/UI assets
+assets/                   canonical original branding source assets
+packaging/cia/            optional native CIA configuration and asset tools
 ```

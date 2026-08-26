@@ -1,9 +1,13 @@
 # Technical feasibility analysis
 
-Status: phase-zero complete; bidirectional discovery and HTTP one-file transfer
-in both directions are verified on a real New Nintendo 2DS XL. The Citro2D UI
-replacement is ready for real-hardware testing. Research was refreshed on
-2026-08-24.
+> Historical development snapshot: this document began as the phase-zero
+> feasibility analysis and retains early constraints and future-looking TLS
+> notes. Since this snapshot, bidirectional HTTP one-file transfer, the Citro2D
+> graphical UI, Settings persistence, and native CIA HOME Menu launch have been
+> exercised on a real New Nintendo 2DS XL. Current verification status is
+> maintained in `compatibility.md` and `testing.md`.
+
+Research in this snapshot was refreshed on 2026-08-24.
 
 ## Host toolchain audit
 
@@ -148,11 +152,11 @@ come from the official devkitPro `3ds-dev` group; no graphics code is vendored.
 
 ## Feasibility conclusion
 
-No platform blocker has been found for IPv4 discovery, a small HTTP server,
-bounded file streaming, SD storage, random tokens, or a Citro2D interface.
-Discovery and one-file transfer in both directions are proven on hardware.
-The graphical shell and mutual-TLS resource/interoperability behavior remain
-hardware-dependent.
+No platform blocker was found for IPv4 discovery, a small HTTP server, bounded
+file streaming, SD storage, random tokens, or a Citro2D interface. Discovery,
+one-file transfer in both directions, and the graphical shell were subsequently
+exercised on real hardware. Mutual-TLS resource use and interoperability remain
+unimplemented and hardware-dependent.
 
 Sources: [LocalSend protocol v2.2](https://github.com/localsend/protocol),
 [current LocalSend core](https://github.com/localsend/localsend/tree/main/packages/core/src),

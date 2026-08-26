@@ -1,10 +1,10 @@
 # LocalSend3DS
 
-LocalSend3DS is an **unofficial, early-stage LocalSend client for the Nintendo
-3DS family**. Bidirectional LAN discovery and HTTP single-file transfers with
-official LocalSend for macOS are verified on a real New Nintendo 2DS XL. The
-current build replaces the engineering consoles with a Citro2D graphical
-interface designed around the two 3DS screens.
+LocalSend3DS is an **unofficial native LocalSend-compatible client for the
+Nintendo 3DS family**. It targets stable LocalSend protocol v2.2. Bidirectional
+LAN discovery and HTTP single-file transfers with official LocalSend for macOS
+are verified on a real New Nintendo 2DS XL. The application uses a Citro2D
+graphical interface designed around the two 3DS screens.
 
 Current code includes:
 
@@ -33,6 +33,8 @@ Current code includes:
 - persistent device-name, Quick Save, and Auto Finish settings stored under
   `sdmc:/3ds/LocalSend/settings.conf`;
 - a distinct LocalSend3DS SMDH icon and embedded title/description metadata;
+- supported `.3dsx` and optional native `.cia` builds from the same application
+  source, with no external `.3dsx` forwarder dependency for the CIA;
 - host-side protocol, HTTP fragmentation/chunking, filesystem, session, SHA-256,
   transfer-state, outgoing partial-write/response, registry, and pure UI-model
   tests under ASan/UBSan.
@@ -65,6 +67,17 @@ Build the `.3dsx`:
 make
 ```
 
+The optional native CIA build additionally requires compatible `bannertool`
+and `makerom` executables. It is separate from the normal `make` target:
+
+```sh
+make cia BANNERTOOL=/path/to/bannertool MAKEROM=/path/to/makerom
+```
+
+The CIA launches LocalSend3DS directly from HOME Menu and does not chainload or
+depend on an external `.3dsx`. Installation requires custom firmware capable of
+installing and launching unsigned homebrew CIA packages.
+
 Run platform-independent tests on macOS:
 
 ```sh
@@ -88,7 +101,7 @@ active transfer. See [testing.md](docs/testing.md) for the full checklist.
 
 ## Real-hardware outgoing test
 
-Outgoing TLS is not implemented, so first disable encryption in official
+TLS/HTTPS is not implemented, so first disable encryption in official
 LocalSend for macOS and refresh discovery until the Mac is marked `HTTP` on the
 3DS. Press A on the nearby-device screen, browse from `sdmc:/`, select one file,
 select the Mac, and press A. Accept on the Mac and compare the received file's
@@ -137,10 +150,19 @@ artwork. See [branding.md](docs/branding.md) for the audit and source links.
 ## Status and scope
 
 Bidirectional discovery and HTTP one-file transfer in both directions are
-verified on a real New Nintendo 2DS XL, including correct hardware-model
-reporting. The new graphical interface itself is host-tested and cross-compiled
-but awaits real-hardware validation. See the
+verified with official LocalSend for macOS on a real New Nintendo 2DS XL,
+including correct hardware-model reporting and a byte-identical incoming
+transfer verified by SHA-256. The graphical UI, Settings persistence, and
+native CIA HOME Menu launch have also been tested on that console. Other
+Nintendo 3DS-family models and official LocalSend clients on other operating
+systems have not yet been verified. See the
 [compatibility matrix](docs/compatibility.md).
 
+Transfers are currently limited to one file per session. LocalSend3DS supports
+plain HTTP only; TLS/HTTPS is not implemented, so official peers must have
+encryption disabled and advertise HTTP for transfers with LocalSend3DS.
+
 LocalSend3DS is licensed under the MIT License. LocalSend is a separate project;
-no endorsement by the LocalSend maintainers or Nintendo is implied.
+LocalSend3DS is not affiliated with or endorsed by the LocalSend maintainers or
+Nintendo. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency
+and interoperability-reference notices.

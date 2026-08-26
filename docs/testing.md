@@ -49,6 +49,27 @@ Run `scripts/check-toolchain.sh`, then `make`. The required artifact is
 official devkitPro libctru/Citro2D/Citro3D stack. CI independently runs host
 tests and builds in the official devkitPro devkitARM container.
 
+## Verified real-hardware coverage
+
+The following categories have been exercised on a real New Nintendo 2DS XL
+with official LocalSend for macOS on the same LAN:
+
+- bidirectional LocalSend discovery;
+- macOS-to-3DS one-file receive and 3DS-to-macOS one-file send over HTTP;
+- byte-identity verification, including an incoming file whose source and
+  received SHA-256 values matched exactly;
+- the graphical dual-screen UI and its Receive, Send, file-browser, transfer,
+  result, and Settings views;
+- device-name, Quick Save, and Auto Finish Settings persistence on SDMC;
+- direct native CIA launch from HOME Menu;
+- HOME Menu banner rendering and menu-chime playback.
+
+This does not establish compatibility with other 3DS-family models or official
+LocalSend clients on other operating systems. Cancellation, sleep/lid behavior,
+network interruption, low-storage handling, and the full large-file matrix
+remain recommended release-regression coverage unless separately recorded as
+verified below.
+
 ## Verified real-device discovery test
 
 On 2026-08-24, bidirectional discovery passed on a real New Nintendo 2DS XL,
@@ -107,7 +128,7 @@ counts, and parser rejection reason. The raw JSON and fingerprints are not
 logged.
 
 
-## Receive-MVP hardware tests
+## Single-file receive hardware tests
 
 The first real-hardware receive attempt on 2026-08-24 reached prepare-upload and
 user approval, but the Mac received a connection reset before `/upload`. The
@@ -134,7 +155,7 @@ cancel, peer loss, lid close, SD full/write error, collision, malicious names,
 wrong size, early close, invalid token/IP, and intentional checksum corruption.
 Only a byte-identical final file with no misleading `.part` result is success.
 
-## Outgoing-MVP hardware test
+## Single-file outgoing hardware test
 
 The first real-hardware attempt on 2026-08-24 selected `_setIcon.png` (3,220
 bytes) and the HTTP peer `Test Peer` at `192.0.2.5:53317`. It failed
@@ -146,7 +167,8 @@ connection error. The replacement uses the documented 3DS workaround: reissue
 real failure states. The user subsequently verified one HTTP single-file send
 to official LocalSend for macOS, including byte-identical output.
 
-1. In official LocalSend for macOS, disable encryption for this HTTP-only MVP.
+1. In official LocalSend for macOS, disable encryption for this HTTP-only
+   implementation.
 2. Refresh both applications and confirm the Mac entry on the 3DS says `HTTP`.
 3. On the nearby-device screen press A, browse from `sdmc:/`, select one
    ordinary file, select the Mac, and press A again.
@@ -162,11 +184,12 @@ to official LocalSend for macOS, including byte-identical output.
    `fcntl` setup, destination, initial `connect`, `select`, raw `SO_ERROR`, and
    the 3DS `connect` completion probe.
 
-## Graphical-UI hardware test
+## Graphical-UI hardware verification and regression checklist
 
-The graphical UI is not yet verified on hardware. Use a small ordinary file in
-each direction so protocol regressions can be separated from rendering/input
-issues:
+The graphical UI has been exercised on real New Nintendo 2DS XL hardware. Use
+the following checklist for final-release regression testing, with a small
+ordinary file in each direction so protocol regressions can be separated from
+rendering/input issues:
 
 1. Replace the prior SD-card `.3dsx` with the reported artifact. Keep no asset
    sidecar files; the icon and metadata are embedded.
@@ -192,3 +215,24 @@ issues:
    Launcher. If anything fails, copy
    `sdmc:/3ds/LocalSend/logs/latest.log` before relaunching and photograph both
    screens.
+
+## Native-CIA hardware verification and regression checklist
+
+The native CIA has been installed and launched successfully from HOME Menu on a
+real New Nintendo 2DS XL. Its graphical application UI, Settings storage paths,
+and HOME Menu banner/chime use the same project code and generated assets as the
+supported build. The CIA is native and has no external `.3dsx` dependency.
+
+For a final release candidate, repeat these checks rather than treating the
+earlier feasibility installation as sufficient release verification:
+
+1. Install or update the CIA on current Luma3DS and launch it from HOME Menu.
+2. Confirm the final icon, title, static banner, and chime, then confirm the
+   normal LocalSend3DS UI starts without a HOME Menu exception.
+3. Verify bidirectional discovery and one small HTTP transfer in each direction.
+4. Change one Settings value, restart the CIA, and confirm it persists.
+5. Press START while idle and confirm a clean return to HOME Menu.
+6. Close and reopen the lid while idle. Transfer-time sleep/interruption remains
+   a separate, not-yet-broadly-verified case.
+7. Install the same-title update over the prior CIA and confirm SD-side Settings,
+   logs, and downloads remain intact.

@@ -53,5 +53,11 @@ desktop screen:
 dual-screen handheld and bidirectional local-transfer arrows. The generated
 48x48 `icon.png` is embedded into `LocalSend3DS.smdh` together with the title
 `LocalSend3DS`, description `Unofficial LocalSend client for Nintendo 3DS`, and
-project-contributor author string. The project artwork and source are covered by
-this repository's MIT license.
+Homebrew/SMDH author `Val March`. The detailed application About view credits
+`Volkan 'Val March' Söylemez`, which is also the intended public copyright and
+Git author identity. The original LocalSend3DS artwork and project source are
+covered by this repository's MIT License under that copyright owner.
+
+The LocalSend3DS mark is the project's own identity. Official LocalSend logo
+artwork is not copied or presented as LocalSend3DS branding, and descriptive
+use of the LocalSend name does not imply affiliation or endorsement.

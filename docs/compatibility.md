@@ -7,19 +7,21 @@ Nintendo 3DS-family hardware. Host parser/socket tests are not substitutes.
 |---|---|---|---|---|---|---|---|
 | macOS -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | Ready for hardware test | **Verified for tested file** | Not implemented | Not implemented | Not implemented |
 | 3DS -> macOS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL (HTTP)** | Ready for broader hardware test | User reports byte-identical transfer | Not implemented | Not implemented | Not implemented |
-| Windows -> 3DS | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| Android -> 3DS | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| Linux -> 3DS | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| iOS -> 3DS | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| 3DS -> Windows | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| 3DS -> Android | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| 3DS -> Linux | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| 3DS -> iOS | Not tested | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+| Windows -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| Android -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| Linux -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| iOS -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| 3DS -> Windows | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| 3DS -> Android | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| 3DS -> Linux | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| 3DS -> iOS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
 
 Current limitation: LocalSend3DS advertises honest HTTP mode. TLS/HTTPS and PIN
-support are deferred. The receive and outgoing MVPs accept exactly one file per
-session; batches and folders are not implemented. For the outgoing hardware
-test, disable encryption in official LocalSend for macOS so it advertises HTTP.
+support are not implemented. Official peers must disable encryption and
+advertise HTTP for interoperability. Receive and outgoing transfers accept
+exactly one file per session; batches, folders, text, and clipboard transfers
+are not implemented. Sleep/lid interruption, cancellation, low-storage, and
+large-file behavior have not received broad real-hardware coverage.
 
 ## Verified discovery milestone — 2026-08-24
 
@@ -60,9 +62,9 @@ hardware. Broader receive cases such as cancellation, multiple sizes, and
 malformed peers remain separate test-matrix items.
 
 The old bottom console retained `Transfer accepted; waiting for upload` after
-completion while the top console correctly showed `State: completed`. The new
-graphical renderer reads the terminal transfer state directly on both screens,
-removing that stale-message path; real-hardware visual confirmation is pending.
+completion while the top console correctly showed `State: completed`. The
+terminal interface was subsequently replaced by the graphical renderer and is
+no longer the normal application UI.
 
 ## First outgoing attempt — 2026-08-24
 
@@ -89,10 +91,18 @@ receive result above, basic bidirectional LocalSend one-file transfer is now a
 real-hardware result. Broader sizes, cancellation cases, other 3DS models, and
 other official-client platforms remain separate matrix items.
 
-## Graphical UI build
+## Graphical UI, Settings, and native CIA
 
-The terminal interface has been replaced in normal use by a Citro2D dual-screen
-UI with touch and physical controls. This UI build is host-tested and
-cross-compiled but is **not yet verified on real hardware**. The verified
-network and transfer results above apply to the protocol implementation that
-the new UI preserves.
+The Citro2D dual-screen UI has been exercised on a real New Nintendo 2DS XL,
+including its Receive, Send, Settings, file-browser, approval, progress, and
+result views. Touch and physical-button interaction were used during iterative
+real-hardware testing. Device-name, Quick Save, and Auto Finish Settings
+persistence was also tested on the console, including the SDMC-safe replacement
+fix.
+
+The native CIA has been installed and launched directly from HOME Menu on the
+same console. It runs the shared LocalSend3DS application rather than a
+forwarder and does not depend on an external `.3dsx`. HOME Menu banner rendering
+and chime playback were visually and audibly checked on hardware. This does not
+constitute coverage of other 3DS-family models, every HOME Menu theme, sleep/lid
+transitions, or every failure path.

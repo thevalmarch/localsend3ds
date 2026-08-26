@@ -1,32 +1,34 @@
 # Deferred product backlog
 
-Basic bidirectional one-file transfer is verified and the engineering consoles
-have been replaced in normal use by the first Citro2D dual-screen interface.
-The UI awaits real-hardware validation before this milestone is closed.
+This file records work intentionally left beyond the current v1.0.0 scope. The
+following foundations are complete and have been exercised on a real New
+Nintendo 2DS XL with official LocalSend for macOS:
 
-Completed in the graphical UI build:
-
-- replace the consoles with a dual-screen graphical UI designed around the
-  400x240 top screen, 320x240 touch screen, and physical controls;
-- keep identity/status/progress on top and nearby devices, file browsing,
-  confirmation, and settings on the touch screen;
-- inspect the official LocalSend repository, license/NOTICE files, asset-specific
-  terms, and any trademark guidance before final branding;
-- if permitted, prefer the recognizable official LocalSend logo and visual
-  identity, adapting it only as needed for SMDH/HOME Menu legibility and an
-  optional subtle 3DS distinction; otherwise document the exact permission
-  uncertainty and retain a temporary development icon;
-- clearly label the project `LocalSend3DS` and `Unofficial LocalSend client for
-  Nintendo 3DS` without implying upstream endorsement;
-- use the standard `desktop` device type while retaining independent alias/model
-  identity; never invent a protocol value to influence remote icons.
+- bidirectional discovery and HTTP one-file transfer;
+- a dual-screen Citro2D interface with touch and physical controls;
+- graphical receive approval, transfer progress, results, SD browsing, and
+  recipient selection;
+- configurable device alias plus persistent Quick Save and Auto Finish
+  settings;
+- `.3dsx` and native CIA packaging from the same application source;
+- direct native CIA launch from HOME Menu without a forwarder or external
+  `.3dsx` dependency;
+- original LocalSend3DS icon, HOME Menu banner, and menu chime.
 
 Still deferred:
 
-- configurable alias while keeping alias and detected hardware model separate;
-- exact official-logo reuse pending explicit trademark/logo permission;
-- UI refinement based on screenshots and input observations from real hardware.
+- HTTPS/TLS, certificate persistence and verification, and encrypted-peer
+  interoperability;
+- PIN support and trusted-device policy;
+- multiple-file, folder, text, and clipboard transfers;
+- transfer history and broader settings;
+- interoperability testing with official LocalSend clients on Windows, Linux,
+  Android, and iOS;
+- testing on Nintendo 3DS-family models other than New Nintendo 2DS XL;
+- broader cancellation, network-interruption, low-storage, lid/sleep, and large
+  file test coverage;
+- additional UI refinements supported by real-hardware observations.
 
-Outgoing HTTPS/TLS, functional advanced settings, multi-file/folder transfer,
-PIN, trusted devices, and transfer history remain deferred until after UI
-hardware validation.
+Official LocalSend logo artwork is not bundled. The project uses its original
+LocalSend3DS mark unless upstream provides clear permission for a different
+branding arrangement.

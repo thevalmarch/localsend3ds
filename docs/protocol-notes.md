@@ -8,7 +8,7 @@ The stable upstream specification is **LocalSend protocol v2.2** as of
 contains design diagrams, but there is no stable v3 specification; this project
 therefore implements v2.2 and rejects v3 packets rather than guessing.
 
-## Discovery behavior needed for the first milestone
+## Implemented discovery and registration behavior
 
 - IPv4 UDP group `224.0.0.167`, default port `53317`, TTL 1.
 - Announcement fields: alias, version, optional device model/type, fingerprint,
@@ -22,15 +22,15 @@ therefore implements v2.2 and rejects v3 packets rather than guessing.
 The current official core describes UDP as announce-only: a peer answers an
 announcement with an HTTP register request. This is stricter than relying on
 the v2 specification's UDP fallback. Therefore `/register` was brought into the
-discovery milestone. The current code advertises honest plain HTTP and stores
-peer UDP announcements locally. Active register calls to HTTPS peers await the
-TLS client layer.
+implemented discovery path. The current code advertises honest plain HTTP and
+stores peer UDP announcements locally. HTTPS peers are not contacted because a
+TLS client layer is not implemented.
 
-## Exact receive-MVP protocol surface
+## Implemented receive protocol surface
 
 1. `POST /api/localsend/v2/register` and `GET /api/localsend/v2/info`.
 2. `POST /api/localsend/v2/prepare-upload` with typed sender info and a bounded
-   map of file metadata. PIN query parsing is reserved but disabled initially.
+   map of file metadata. PIN support is not implemented.
 3. User approval before response. `200` returns a cryptographically random
    session ID and accepted file-token map; `403` rejects; `409` protects an
    active session; `400/429/500` follow the specification.
@@ -45,11 +45,11 @@ TLS client layer.
    stop I/O, close handles, remove/mark partial data, invalidate all tokens, and
    emit a terminal UI event.
 
-The typed transfer model is intentionally single-file for version 0.1. A
-prepare request with more than one file receives `400`; batch support is
-deferred so real one-file interoperability is reached first.
+The current v1.0.0 transfer model is intentionally single-file. A prepare
+request with more than one file receives `400`; batch support is not
+implemented.
 
-## Exact outgoing-MVP protocol flow
+## Implemented outgoing protocol flow
 
 1. Serialize the local typed device information and one selected SD file into
    the v2.2 prepare-upload request. The file has a secure random UUID ID,
@@ -69,7 +69,7 @@ deferred so real one-file interoperability is reached first.
    exists it also sends `POST /api/localsend/v2/cancel?sessionId=` on a separate
    bounded nonblocking connection.
 
-Only honest HTTP recipients are supported in this slice. HTTPS peers are not
+Only honest HTTP recipients are supported. HTTPS peers are not
 downgraded or contacted as plaintext; the UI asks the tester to disable
 encryption on the official recipient. This matches the upstream project's own
 plain-HTTP sender testing mode and preserves the later certificate-pinning path.
@@ -78,12 +78,16 @@ plain-HTTP sender testing mode and preserves the later certificate-pinning path.
 
 `prepare-download`/`download` is designed primarily for a sender that hosts
 unencrypted files for browser download when the receiver has no LocalSend
-server. It is not required for 3DS receiving and is not the preferred first
-outgoing path. Version 0.2 should use normal prepare-upload/upload against a
-peer server. Reverse download remains useful for browser interoperability and
-will be reconsidered after native outgoing transfer is stable.
+server. It is not required for the implemented 3DS receive or send flows. The
+current outgoing implementation uses the normal `prepare-upload`/`upload`
+sequence against a peer server. Reverse download is not implemented and remains
+a possible future interoperability feature.
 
-## TLS identity and verification
+## Future TLS identity and verification
+
+TLS/HTTPS is not implemented in LocalSend3DS v1.0.0. The following notes record
+the upstream behavior that a future implementation would need to preserve; they
+do not describe a current feature:
 
 - HTTP fingerprint: random device string, used for self-discovery/remembering.
 - HTTPS fingerprint: uppercase hex SHA-256 over certificate DER.
