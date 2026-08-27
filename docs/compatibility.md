@@ -7,13 +7,13 @@ Nintendo 3DS-family hardware. Host parser/socket tests are not substitutes.
 |---|---|---|---|---|---|---|---|
 | macOS -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP | **SHA-256 matched for one tested file** | Implemented; not hardware-verified | Not implemented | Not implemented |
 | 3DS -> macOS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP and HTTPS/mTLS | **SHA-256 matched for an earlier HTTP test; HTTPS not independently checked** | Implemented; not hardware-verified | Not implemented | Not implemented |
-| Windows -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
-| Android -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
 | Linux -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP | Not tested | Not tested | Not implemented | Not implemented |
-| iOS -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
-| 3DS -> Windows | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
-| 3DS -> Android | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
 | 3DS -> Linux | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTPS/mTLS | Not tested | Not tested | Not implemented | Not implemented |
+| Android -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP | Not independently checked | Not reported | Not implemented | Not implemented |
+| 3DS -> Android | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | Not separately recorded | Not independently checked | Not reported | Not implemented | Not implemented |
+| Windows -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| 3DS -> Windows | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| iOS -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
 | 3DS -> iOS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
 
 LocalSend3DS advertises an HTTP receive endpoint. Official peers can send to
@@ -131,9 +131,17 @@ refactor. The console clock had to be corrected before peer-certificate
 validity could pass, as intended. The completed HTTPS transfers have not yet
 received independent destination file-size or SHA-256 comparisons.
 
-The TLS-enabled `.3dsx` artifact is produced from the same application code and
-passes the cross-build gate, but it has not received a separate post-TLS
-real-hardware launch/transfer smoke test.
+The final TLS-enabled `.3dsx` artifact launches successfully through Homebrew
+Launcher on the same real hardware. This verifies package-format startup, not a
+separate `.3dsx`-specific transfer run.
+
+## Android interoperability — verified 2026-08-27
+
+On a real New Nintendo 2DS XL and official LocalSend on Android on the same
+LAN, bidirectional discovery and one-file transfer in both directions
+completed successfully. No independent checksum comparison, cancellation
+coverage, exact outgoing transport record, or Android-specific failure-path
+coverage was reported, so those properties are not inferred from completion.
 
 ## Graphical UI, Settings, and native CIA
 
@@ -150,3 +158,18 @@ forwarder and does not depend on an external `.3dsx`. HOME Menu banner rendering
 and chime playback were visually and audibly checked on hardware. This does not
 constitute coverage of other 3DS-family models, every HOME Menu theme, sleep/lid
 transitions, or every failure path.
+
+## Final v1.0.0 package and Settings smoke — verified 2026-08-27
+
+The final native CIA and final TLS-enabled `.3dsx` both launched successfully
+on the real New Nintendo 2DS XL, respectively from HOME Menu and Homebrew
+Launcher. The application exited cleanly. The final graphical Settings screen
+was visually checked on hardware: the Connection value displayed
+`Receive: HTTP`; the Quick Save trusted-network warning, v1.0.0/PIN detail,
+compact and detailed Author text, and Settings status feedback all rendered
+correctly. Settings persistence survived an application restart.
+
+Across the real-hardware release testing, bidirectional discovery,
+computer-to-3DS receive, and 3DS-to-computer HTTPS/mTLS send remained working.
+The final `.3dsx` result above is deliberately limited to launch because the
+transfer record was not separately attributed to that package format.

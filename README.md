@@ -150,25 +150,29 @@ procedure.
 ## Compatibility and known limitations
 
 Real-hardware testing currently covers a New Nintendo 2DS XL with official
-LocalSend peers on macOS and Linux:
+LocalSend peers on macOS, Linux, and Android:
 
 - macOS: bidirectional discovery and one-file transfer are verified, including
   3DS-to-macOS HTTPS/mTLS with fingerprint pinning and persistent client-identity
   reuse after an application restart.
 - Linux: bidirectional discovery and one-file transfer are verified, including
   3DS-to-Linux HTTPS/mTLS with fingerprint pinning.
+- Android: bidirectional discovery and one-file transfer are verified. No
+  independent checksum comparison or Android-specific cancellation/failure-path
+  coverage was reported.
 
 The outgoing HTTPS/mTLS hardware tests used the native CIA. The TLS-enabled
-`.3dsx` build uses the same application code and is cross-build validated, but
-has not received a separate post-TLS real-hardware smoke test.
+`.3dsx` release candidate also launches successfully through Homebrew Launcher
+on real hardware. That `.3dsx` result is a launch smoke test; transfer coverage
+has not been separately attributed to that package format.
 
-The outgoing HTTPS transfers completed on both platforms, but their destination
+The outgoing HTTPS transfers completed on macOS and Linux, but their destination
 files have not yet received an independent size or SHA-256 comparison. An
 earlier HTTP transfer to macOS and an incoming macOS transfer were independently
 compared byte-for-byte.
 
 Testing has not yet covered other Nintendo 3DS-family models or official
-LocalSend peers on Windows, Android, or iOS.
+LocalSend peers on Windows or iOS.
 
 Current limitations:
 

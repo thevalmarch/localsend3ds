@@ -18,10 +18,10 @@ The output is `packaging/cia/LocalSend3DS.cia`.
 
 The native packaging pipeline has been validated with:
 
-- [`carstene1ns/3ds-bannertool`](https://github.com/carstene1ns/3ds-bannertool) commit
-  `734d33be79fd3f8c29c6296158f06ac7c5ca9dcb`
-- [`3DSGuy/Project_CTR` makerom](https://github.com/3DSGuy/Project_CTR/tree/master/makerom) commit
-  `e8f5f529c54ff9b22a2491a480ffa69206bf7b19`
+- [`carstene1ns/3ds-bannertool`](https://github.com/carstene1ns/3ds-bannertool/tree/734d33be79fd3f8c29c6296158f06ac7c5ca9dcb)
+  commit `734d33be79fd3f8c29c6296158f06ac7c5ca9dcb`
+- [`3DSGuy/Project_CTR` makerom](https://github.com/3DSGuy/Project_CTR/tree/e8f5f529c54ff9b22a2491a480ffa69206bf7b19/makerom)
+  commit `e8f5f529c54ff9b22a2491a480ffa69206bf7b19`
 
 Package identity:
 
@@ -46,10 +46,11 @@ No title-managed save data is allocated. Settings, logs, and downloads remain
 in their existing direct-SD paths under `sdmc:/3ds/LocalSend`, independently of
 CIA installation or replacement.
 
-The native package with main-thread `Priority: 16` (encoded as priority `0x30`)
-has been verified on a real New Nintendo 2DS XL for startup and normal
-LocalSend3DS operation. Each newly generated CIA, including banner presentation
-changes, still requires a brief real-hardware regression test.
+The final v1.0.0 native package with main-thread `Priority: 16` (encoded as
+priority `0x30`) has been verified on a real New Nintendo 2DS XL for direct
+HOME Menu launch, normal LocalSend3DS operation, Settings persistence after
+restart, and clean exit. Future rebuilt release artifacts should still receive
+a brief real-hardware regression test.
 
 The earlier generic 3DSX-forwarder experiment was removed after its cross-title
 APT handoff crashed HOME Menu on real hardware. It is not a supported launch

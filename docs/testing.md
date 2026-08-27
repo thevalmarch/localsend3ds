@@ -57,7 +57,7 @@ runs host tests and builds in the official devkitPro devkitARM container.
 ## Verified real-hardware coverage
 
 The following categories have been exercised on a real New Nintendo 2DS XL
-with official LocalSend for macOS on the same LAN:
+with the official LocalSend clients identified below on the same LAN:
 
 - bidirectional LocalSend discovery;
 - macOS-to-3DS one-file receive and 3DS-to-macOS one-file send over HTTP;
@@ -66,6 +66,8 @@ with official LocalSend for macOS on the same LAN:
   reuse after restart;
 - bidirectional discovery and one-file transfer with official LocalSend on
   Linux, including 3DS-to-Linux HTTPS/mTLS using the native CIA;
+- bidirectional discovery and one-file transfer with official LocalSend on
+  Android; no Android checksum or cancellation result was reported;
 - byte-identity verification for one incoming macOS transfer and one earlier
   outgoing HTTP transfer; the outgoing HTTPS results have not been independently
   compared;
@@ -73,16 +75,38 @@ with official LocalSend for macOS on the same LAN:
   result, and Settings views;
 - device-name, Quick Save, and Auto Finish Settings persistence on SDMC;
 - direct native CIA launch from HOME Menu;
+- final TLS-enabled `.3dsx` launch through Homebrew Launcher;
 - HOME Menu banner rendering and menu-chime playback.
 
 This does not establish compatibility with other 3DS-family models or official
-LocalSend clients on Windows, Android, or iOS. Cancellation, sleep/lid behavior,
+LocalSend clients on Windows or iOS. Cancellation, sleep/lid behavior,
 network interruption, low-storage handling, and the full large-file matrix
 remain recommended release-regression coverage unless separately recorded as
 verified below. The completed outgoing HTTPS transfers have not received an
-independent destination size or SHA-256 comparison. The TLS-enabled `.3dsx`
-build passes the cross-build gate but has not received a separate post-TLS
-real-hardware launch/transfer smoke test.
+independent destination size or SHA-256 comparison. The final TLS-enabled
+`.3dsx` launch is verified, but a transfer has not been separately attributed
+to that package format.
+
+## Final v1.0.0 release-candidate hardware smoke — verified 2026-08-27
+
+On a real New Nintendo 2DS XL, the final native CIA launched from HOME Menu and
+the final TLS-enabled `.3dsx` launched through Homebrew Launcher. The normal
+graphical interface appeared, Settings persistence survived restart, and the
+application exited cleanly. The final Settings UI was checked visually:
+
+- Connection displayed `Receive: HTTP`;
+- the Quick Save detail warned that automatic acceptance should be used only
+  on a trusted local network;
+- the `v1.0.0` and unsupported-PIN detail rendered correctly;
+- the compact `Val March` Author value and full
+  `Volkan 'Val March' Söylemez` detail rendered correctly;
+- Settings status feedback rendered correctly in its intended footer area.
+
+Across the release-candidate hardware runs, bidirectional discovery,
+computer-to-3DS receive, and 3DS-to-computer HTTPS/mTLS send completed
+successfully. The transfer evidence is not assigned to the `.3dsx` package
+format unless explicitly recorded elsewhere, and the final HTTPS destination
+files were not independently compared by SHA-256.
 
 ## Verified real-device discovery test
 
@@ -225,10 +249,18 @@ reached completion on real hardware. An independent destination file-size or
 SHA-256 comparison, cancellation, HTTP-mode send, and additional Linux failure
 paths have not been reported.
 
+## Android hardware test — verified transfer coverage
+
+On a real New Nintendo 2DS XL and official LocalSend on Android, both devices
+discovered each other and one file completed in each direction. No independent
+checksum comparison, cancellation run, exact outgoing transport record, or
+Android-specific failure-path test was reported.
+
 ## Graphical-UI hardware verification and regression checklist
 
-The graphical UI has been exercised on real New Nintendo 2DS XL hardware. Use
-the following checklist for final-release regression testing, with a small
+The graphical UI has been exercised on real New Nintendo 2DS XL hardware,
+including the final Settings text and status-feedback changes. Retain the
+following checklist for future release regression testing, with a small
 ordinary file in each direction so protocol regressions can be separated from
 rendering/input issues:
 
@@ -265,8 +297,9 @@ real New Nintendo 2DS XL. Its graphical application UI, Settings storage paths,
 and HOME Menu banner/chime use the same project code and generated assets as the
 supported build. The CIA is native and has no external `.3dsx` dependency.
 
-For a final release candidate, repeat these checks rather than treating the
-earlier feasibility installation as sufficient release verification:
+The final v1.0.0 native CIA has passed direct HOME Menu launch, graphical UI,
+Settings persistence after restart, and clean-exit checks. Retain the broader
+checklist below for future release regression and failure-path testing:
 
 1. Install or update the CIA on current Luma3DS and launch it from HOME Menu.
 2. Confirm the final icon, title, static banner, and chime, then confirm the
