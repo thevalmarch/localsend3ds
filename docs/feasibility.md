@@ -1,11 +1,11 @@
 # Technical feasibility analysis
 
 > Historical development snapshot: this document began as the phase-zero
-> feasibility analysis and retains early constraints and future-looking TLS
-> notes. Since this snapshot, bidirectional HTTP one-file transfer, the Citro2D
-> graphical UI, Settings persistence, and native CIA HOME Menu launch have been
-> exercised on a real New Nintendo 2DS XL. Current verification status is
-> maintained in `compatibility.md` and `testing.md`.
+> feasibility analysis and retains early constraints and then-future-looking
+> TLS notes. Since this snapshot, bidirectional one-file transfer, outgoing
+> HTTPS/mTLS, the Citro2D graphical UI, Settings persistence, and native CIA
+> HOME Menu launch have been exercised on a real New Nintendo 2DS XL. Current
+> verification status is maintained in `compatibility.md` and `testing.md`.
 
 Research in this snapshot was refreshed on 2026-08-24.
 
@@ -25,7 +25,9 @@ authentication, which was unavailable to the automated shell. A custom compiler
 toolchain was not used. As an official fallback, the project was built in
 `devkitpro/devkitarm:latest` with devkitARM GCC 16.1.0. The resulting 3DSX was
 successfully decoded by `3dsxdump`. `scripts/check-toolchain.sh` captures the
-native-host checks.
+native-host checks. Current builds additionally require the official
+`3ds-mbedtls` package; see the root README rather than this historical snapshot
+for current installation commands.
 
 ## Networking
 
@@ -73,7 +75,7 @@ File bodies use one separate 32 KiB BSS buffer and are never accumulated in the
 metadata buffer. A worker remains a later option if hardware profiling shows
 bounded SD writes cause unacceptable UI stalls.
 
-## HTTPS and TLS
+## HTTPS and TLS (historical investigation)
 
 libctru's SSL:C and HTTP:C services are useful client APIs but are not a clear
 fit for a self-signed, mutual-TLS LocalSend server. devkitPro publishes the
@@ -83,16 +85,20 @@ both TLS roles and is the preferred investigation path.
 The stable LocalSend v2.2 identity is the uppercase hexadecimal SHA-256 hash of
 the DER certificate when HTTPS is used. Current official implementation
 behavior additionally requires client certificates for native HTTPS peers.
-The planned identity is a persistent RSA-2048 self-signed certificate with
+The early planned identity was a persistent RSA-2048 self-signed certificate with
 `CN=LocalSend User`, matching current upstream behavior, generated once and
-stored under `sdmc:/3ds/LocalSend/config/`. The peer certificate must be
+stored under `sdmc:/3ds/LocalSend/config/`. The implemented identity instead
+uses `sdmc:/3ds/LocalSend/tls-identity.bin`. The peer certificate must be
 self-signature/time validated and pinned to the fingerprint learned during
 discovery. Globally disabling validation is not acceptable.
 
-The first discovery build advertises `http`, not fake `https`. This can prove
-plain-HTTP discovery behavior but is not the final security mode. TLS memory,
-handshake time, entropy integration, certificate generation, persistence,
-mutual authentication, and interoperability all require real-hardware tests.
+The first discovery build advertised `http`, not fake `https`. The eventual
+implementation retained that truthful HTTP receive advertisement and added a
+separate outgoing TLS-over-SOC transport. It uses the official devkitPro
+`3ds-mbedtls` 2.28.8 package, PS-backed entropy, a persistent RSA-2048 client
+identity, peer self-signature/time validation, and exact leaf-DER fingerprint
+pinning. Outgoing HTTPS/mTLS interoperability was later verified on real
+hardware with official LocalSend on macOS and Linux.
 
 ## JSON
 
@@ -115,7 +121,7 @@ flush/close, and final rename only after exact size/hash verification. Collision
 names are generated within the fixed directory. Preflight free-space display is
 still deferred; write/flush failures are handled and never finalize the file.
 
-Filename handling will reject absolute paths, drive-like prefixes, `.`/`..`,
+Filename handling rejects absolute paths, drive-like prefixes, `.`/`..`,
 slashes, backslashes, control characters, empty names, and overlong UTF-8. A
 sanitized basename is never concatenated before the destination directory has
 been fixed. Directory metadata and Unicode normalization remain hardware/client
@@ -125,9 +131,9 @@ compatibility questions.
 
 Citro2D now renders a normal graphical interface on both screens. The system
 font and primitive shapes avoid texture-cache growth; UI model helpers remain
-host-testable. Networking is bounded and nonblocking in the frame loop. The receive MVP does
-at most one bounded socket read and SD write per connection update; hardware
-profiling will decide whether a worker is needed.
+host-testable. Networking is bounded and nonblocking in the frame loop. The
+receive MVP does at most one bounded socket read and SD write per connection
+update; hardware profiling will decide whether a worker is needed.
 
 Initial hard bounds are 16 peers, four connections, 2 KiB discovery datagrams,
 2 KiB request headers, 16 KiB metadata bodies, and one reusable 32 KiB transfer
@@ -145,7 +151,7 @@ failed transfer. Actual lid behavior is unresolved until hardware testing.
 | devkitARM + libctru (`3ds-dev`) | now | Official compiler/runtime and 3DS APIs; required. |
 | Citro2D/Citro3D (`3ds-dev`) | now | Lightweight hardware-accelerated 2D UI, system-font text, and primitive drawing. |
 | libc/newlib socket and stdio APIs | now | Enough for discovery, HTTP, and streamed files. |
-| `3ds-mbedtls` 2.28.x (Apache-2.0) | TLS phase | devkitPro-supported TLS server/client and SHA-256/certificate primitives. |
+| `3ds-mbedtls` 2.28.8 (Apache-2.0) | now | Official devkitPro TLS/X.509/RSA dependency used by the outgoing HTTPS client. |
 
 No HTTP framework, C++ runtime, or desktop library is linked. Citro2D/Citro3D
 come from the official devkitPro `3ds-dev` group; no graphics code is vendored.
@@ -154,9 +160,10 @@ come from the official devkitPro `3ds-dev` group; no graphics code is vendored.
 
 No platform blocker was found for IPv4 discovery, a small HTTP server, bounded
 file streaming, SD storage, random tokens, or a Citro2D interface. Discovery,
-one-file transfer in both directions, and the graphical shell were subsequently
-exercised on real hardware. Mutual-TLS resource use and interoperability remain
-unimplemented and hardware-dependent.
+one-file transfer in both directions, the graphical shell, and outgoing mutual
+TLS were subsequently exercised on real hardware. Incoming HTTPS serving,
+PIN-protected transfers, broader hardware coverage, and the stress/failure
+matrix remain outside this historical feasibility milestone.
 
 Sources: [LocalSend protocol v2.2](https://github.com/localsend/protocol),
 [current LocalSend core](https://github.com/localsend/localsend/tree/main/packages/core/src),

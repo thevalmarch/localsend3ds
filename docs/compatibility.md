@@ -3,25 +3,30 @@
 No row below is marked working until tested with an official client and real
 Nintendo 3DS-family hardware. Host parser/socket tests are not substitutes.
 
-| Direction | Discovery | One file | Cancel | SHA-256 | Multi-file | HTTPS | PIN |
+| Direction | Discovery | One file | Transport verified | Independent integrity check | Cancel | Multi-file | PIN |
 |---|---|---|---|---|---|---|---|
-| macOS -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | Ready for hardware test | **Verified for tested file** | Not implemented | Not implemented | Not implemented |
-| 3DS -> macOS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL (HTTP)** | Ready for broader hardware test | User reports byte-identical transfer | Not implemented | Not implemented | Not implemented |
-| Windows -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| Android -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| Linux -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| iOS -> 3DS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| 3DS -> Windows | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| 3DS -> Android | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| 3DS -> Linux | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
-| 3DS -> iOS | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented | Not implemented |
+| macOS -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP | **SHA-256 matched for one tested file** | Implemented; not hardware-verified | Not implemented | Not implemented |
+| 3DS -> macOS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP and HTTPS/mTLS | **SHA-256 matched for an earlier HTTP test; HTTPS not independently checked** | Implemented; not hardware-verified | Not implemented | Not implemented |
+| Windows -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| Android -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| Linux -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP | Not tested | Not tested | Not implemented | Not implemented |
+| iOS -> 3DS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| 3DS -> Windows | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| 3DS -> Android | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
+| 3DS -> Linux | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTPS/mTLS | Not tested | Not tested | Not implemented | Not implemented |
+| 3DS -> iOS | Not tested | Not tested | Not tested | Not tested | Not tested | Not implemented | Not implemented |
 
-Current limitation: LocalSend3DS advertises honest HTTP mode. TLS/HTTPS and PIN
-support are not implemented. Official peers must disable encryption and
-advertise HTTP for interoperability. Receive and outgoing transfers accept
-exactly one file per session; batches, folders, text, and clipboard transfers
-are not implemented. Sleep/lid interruption, cancellation, low-storage, and
-large-file behavior have not received broad real-hardware coverage.
+LocalSend3DS advertises an HTTP receive endpoint. Official peers can send to
+that endpoint regardless of whether their own receive service advertises HTTP
+or HTTPS. When LocalSend3DS sends, it follows the recipient's advertised
+protocol: plain HTTP remains supported, while HTTPS uses TLS 1.2 mutual TLS,
+certificate validity and self-signature checks, and exact leaf-DER SHA-256
+fingerprint pinning. There is no HTTPS-to-HTTP downgrade.
+
+PIN support is not implemented. Receive and outgoing transfers accept exactly
+one file per session; batches, folders, text, and clipboard transfers are not
+implemented. Sleep/lid interruption, cancellation, low-storage, and large-file
+behavior have not received broad real-hardware coverage.
 
 ## Verified discovery milestone — 2026-08-24
 
@@ -68,10 +73,9 @@ no longer the normal application UI.
 
 ## First outgoing attempt — 2026-08-24
 
-On a real New Nintendo 2DS XL, LocalSend3DS selected `_setIcon.png` (3,220
-bytes) and the discovered official macOS peer `Test Peer` using plain
-HTTP at `192.0.2.5:53317`. Discovery remained functional, but no
-prepare-upload or file bytes were sent. The hardware log reported
+On a real New Nintendo 2DS XL, LocalSend3DS selected a 3,220-byte PNG and a
+discovered official macOS peer using plain HTTP. Discovery remained functional,
+but no prepare-upload or file bytes were sent. The hardware log reported
 `Connection failed (errno -26)`.
 
 The failing value came from `getsockopt(SOL_SOCKET, SO_ERROR)`, not from the
@@ -90,6 +94,46 @@ and the user reports byte-identical transfer verification. Together with the
 receive result above, basic bidirectional LocalSend one-file transfer is now a
 real-hardware result. Broader sizes, cancellation cases, other 3DS models, and
 other official-client platforms remain separate matrix items.
+
+## Linux interoperability — verified in stages 2026-08-26 to 2026-08-27
+
+On a real New Nintendo 2DS XL and official LocalSend on Linux on the same LAN,
+the two applications discovered each other. This verifies discovery in both
+directions for the tested Linux peer.
+
+The Linux peer successfully sent one file to LocalSend3DS. Completion was
+observed, but no independent SHA-256 comparison or Linux cancellation test was
+reported, so neither is marked verified.
+
+The first reverse-direction attempt correctly stopped before transfer because
+the then-current LocalSend3DS build did not support the HTTPS protocol advertised
+by the Linux peer. After outgoing HTTPS/mTLS was implemented, LocalSend3DS sent
+one file successfully to the normally encrypted Linux peer on the same real
+hardware. Both sides reached completion. No independent destination size or
+SHA-256 comparison was reported for that HTTPS transfer.
+
+## Outgoing HTTPS/mTLS milestone — verified 2026-08-27
+
+LocalSend3DS sent one file from a real New Nintendo 2DS XL to normally encrypted
+official LocalSend recipients on macOS and Linux using the native CIA. On
+macOS, diagnostic logs for both the prepare-upload and upload connections
+confirmed:
+
+- TLS 1.2 handshakes with a configured LocalSend3DS client certificate;
+- peer-certificate time validity and cryptographic self-signature checks;
+- exact leaf-certificate SHA-256 matches against the discovered fingerprint;
+- no HTTP metadata before the recipient security checks passed.
+
+The application was restarted and a second macOS HTTPS transfer completed with
+the same persistent client-identity fingerprint prefix, verifying identity
+reuse from SD. Incoming macOS-to-3DS transfer still worked after the transport
+refactor. The console clock had to be corrected before peer-certificate
+validity could pass, as intended. The completed HTTPS transfers have not yet
+received independent destination file-size or SHA-256 comparisons.
+
+The TLS-enabled `.3dsx` artifact is produced from the same application code and
+passes the cross-build gate, but it has not received a separate post-TLS
+real-hardware launch/transfer smoke test.
 
 ## Graphical UI, Settings, and native CIA
 

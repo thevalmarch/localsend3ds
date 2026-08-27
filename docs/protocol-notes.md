@@ -22,9 +22,9 @@ therefore implements v2.2 and rejects v3 packets rather than guessing.
 The current official core describes UDP as announce-only: a peer answers an
 announcement with an HTTP register request. This is stricter than relying on
 the v2 specification's UDP fallback. Therefore `/register` was brought into the
-implemented discovery path. The current code advertises honest plain HTTP and
-stores peer UDP announcements locally. HTTPS peers are not contacted because a
-TLS client layer is not implemented.
+implemented discovery path. LocalSend3DS advertises an honest plain-HTTP
+receive endpoint and stores both HTTP and HTTPS peer announcements. The peer's
+advertised protocol is selected later by the outgoing transport.
 
 ## Implemented receive protocol surface
 
@@ -53,11 +53,13 @@ implemented.
 
 1. Serialize the local typed device information and one selected SD file into
    the v2.2 prepare-upload request. The file has a secure random UUID ID,
-   64-bit size, `application/octet-stream` type, and null checksum/preview.
+   64-bit size, `application/octet-stream` type, `sha256: null`, and a null
+   preview. Outgoing checksum generation is not implemented.
 2. `POST /api/localsend/v2/prepare-upload` and keep the nonblocking request
    alive while the recipient decides. Parse bounded fragmented HTTP responses;
    `200` must contain a nonempty session ID and a token under exactly the
-   requested file ID. Treat `204/401/403/409/429` as rejection.
+   requested file ID. A `401` identifies unsupported PIN protection;
+   `204/403/409/429` are handled as remote rejection/busy responses.
 3. URL-encode all returned credentials, then open a separate
    `POST /api/localsend/v2/upload?sessionId=&fileId=&token=` connection with an
    exact 64-bit Content-Length. Stream at most 32 KiB from SD at a time and
@@ -69,10 +71,16 @@ implemented.
    exists it also sends `POST /api/localsend/v2/cancel?sessionId=` on a separate
    bounded nonblocking connection.
 
-Only honest HTTP recipients are supported. HTTPS peers are not
-downgraded or contacted as plaintext; the UI asks the tester to disable
-encryption on the official recipient. This matches the upstream project's own
-plain-HTTP sender testing mode and preserves the later certificate-pinning path.
+The same outgoing state machine supports honest HTTP and HTTPS recipients.
+HTTPS performs TLS 1.2 mutual TLS, presents the persistent LocalSend3DS client
+certificate, checks the peer certificate's time validity and cryptographic
+self-signature, and pins the SHA-256 of the exact leaf DER to the discovered
+fingerprint before any HTTP bytes are sent. A malformed fingerprint or failed
+check stops the transfer; HTTPS is never downgraded to HTTP.
+
+PIN is separate from TLS and is not implemented. A `401` prepare response
+produces a specific unsupported-PIN error, and LocalSend3DS does not retry with
+a PIN.
 
 ## Reverse/download API decision
 
@@ -83,20 +91,34 @@ current outgoing implementation uses the normal `prepare-upload`/`upload`
 sequence against a peer server. Reverse download is not implemented and remains
 a possible future interoperability feature.
 
-## Future TLS identity and verification
-
-TLS/HTTPS is not implemented in LocalSend3DS v1.0.0. The following notes record
-the upstream behavior that a future implementation would need to preserve; they
-do not describe a current feature:
+## Outgoing TLS identity and verification
 
 - HTTP fingerprint: random device string, used for self-discovery/remembering.
 - HTTPS fingerprint: uppercase hex SHA-256 over certificate DER.
 - Native HTTPS uses a client certificate as well as a server certificate in
-  current official clients.
-- The discovery fingerprint pins the peer certificate during the handshake.
-- The certificate's self-signature and time validity must be checked; hostname
-  validation is not the LocalSend identity mechanism.
-- Local keys/certificates persist and private material is never logged.
+  current official clients. LocalSend3DS generates an RSA-2048, SHA-256,
+  self-signed client certificate with `CN=LocalSend User` from PS-backed entropy.
+- The identity is stored at `sdmc:/3ds/LocalSend/tls-identity.bin`, recovered
+  from a valid backup when possible, and shared by the 3DSX and CIA builds.
+  The file contains the private key and therefore should be protected with the
+  SD card and its backups. If neither primary nor backup is usable, a new
+  identity is generated.
+- The discovery fingerprint pins the peer leaf certificate during each
+  prepare-upload, upload, and cancel TLS handshake.
+- The peer certificate's self-signature and time validity are checked; hostname
+  validation is not the LocalSend identity mechanism. The console date and time
+  must therefore be correct.
+- The generated LocalSend3DS certificate uses a fixed 1975–4095 validity range,
+  so its creation does not capture a bad first-launch clock. Local keys and
+  certificates persist, and private material is never logged.
+
+This HTTPS implementation is outgoing only. LocalSend3DS continues to advertise
+and serve its incoming endpoints over HTTP.
+
+Fingerprint pinning authenticates the certificate against the value in the
+LocalSend discovery announcement. Because discovery itself is unauthenticated,
+this matches LocalSend's local-network trust model but does not independently
+establish the human identity of the peer.
 
 Source of truth: [localsend/protocol](https://github.com/localsend/protocol).
 Implementation behavior was cross-checked against the current

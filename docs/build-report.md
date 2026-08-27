@@ -5,6 +5,11 @@ artifact sizes and hashes are retained for engineering history; they are not
 current release artifacts or v1.0.0 release checksums. Final release artifacts
 must be produced and measured again from the release commit.
 
+This report predates the outgoing HTTPS/mTLS implementation and its
+`3ds-mbedtls` dependency. Its binary sizes, linked-library list, HTTP-only
+outgoing description, and validation results must not be used to describe the
+current release candidate.
+
 Build date: 2026-08-25 (Europe/Istanbul)
 
 - Build environment: official `devkitpro/devkitarm:latest` container

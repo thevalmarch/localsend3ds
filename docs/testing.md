@@ -29,7 +29,12 @@ cover:
 - an end-to-end outgoing prepare/upload socket flow with every client write
   artificially limited to three bytes;
 - recipient rejection, malformed prepare response, interrupted upload, pending
-  cancellation, active-session `/cancel`, and refusal to downgrade HTTPS;
+  cancellation, and active-session `/cancel`;
+- TLS fingerprint parsing, persistent identity reload/recovery, peer-certificate
+  validity classification, mutual-TLS client-certificate presentation,
+  nonblocking WANT_READ/WANT_WRITE progress, handshake timeout cleanup, exact
+  fingerprint acceptance, wrong-fingerprint rejection before HTTP bytes, and
+  HTTP-response parsing over TLS;
 - Nintendo 3DS nonblocking-connect classification, including the raw SOC:u
   `SO_ERROR == -26` regression and the `EISCONN` completion probe;
 - fixed-capacity file-browser navigation and file-size selection;
@@ -45,9 +50,9 @@ cover:
 
 Run `scripts/check-toolchain.sh`, then `make`. The required artifact is
 `LocalSend3DS.3dsx`. Treat every warning as an error. The build retains
-`-Wstack-usage=4096`, generates the SMDH from `icon.png`, and links only the
-official devkitPro libctru/Citro2D/Citro3D stack. CI independently runs host
-tests and builds in the official devkitPro devkitARM container.
+`-Wstack-usage=4096`, generates the SMDH from `icon.png`, and links the official
+devkitPro libctru/Citro2D/Citro3D and `3ds-mbedtls` packages. CI independently
+runs host tests and builds in the official devkitPro devkitARM container.
 
 ## Verified real-hardware coverage
 
@@ -56,8 +61,14 @@ with official LocalSend for macOS on the same LAN:
 
 - bidirectional LocalSend discovery;
 - macOS-to-3DS one-file receive and 3DS-to-macOS one-file send over HTTP;
-- byte-identity verification, including an incoming file whose source and
-  received SHA-256 values matched exactly;
+- 3DS-to-macOS one-file send over HTTPS/mTLS using the native CIA, including
+  peer fingerprint pinning observed in logs and persistent client-identity
+  reuse after restart;
+- bidirectional discovery and one-file transfer with official LocalSend on
+  Linux, including 3DS-to-Linux HTTPS/mTLS using the native CIA;
+- byte-identity verification for one incoming macOS transfer and one earlier
+  outgoing HTTP transfer; the outgoing HTTPS results have not been independently
+  compared;
 - the graphical dual-screen UI and its Receive, Send, file-browser, transfer,
   result, and Settings views;
 - device-name, Quick Save, and Auto Finish Settings persistence on SDMC;
@@ -65,10 +76,13 @@ with official LocalSend for macOS on the same LAN:
 - HOME Menu banner rendering and menu-chime playback.
 
 This does not establish compatibility with other 3DS-family models or official
-LocalSend clients on other operating systems. Cancellation, sleep/lid behavior,
+LocalSend clients on Windows, Android, or iOS. Cancellation, sleep/lid behavior,
 network interruption, low-storage handling, and the full large-file matrix
 remain recommended release-regression coverage unless separately recorded as
-verified below.
+verified below. The completed outgoing HTTPS transfers have not received an
+independent destination size or SHA-256 comparison. The TLS-enabled `.3dsx`
+build passes the cross-build gate but has not received a separate post-TLS
+real-hardware launch/transfer smoke test.
 
 ## Verified real-device discovery test
 
@@ -103,8 +117,10 @@ one failure.
 
 Each launch replaces `sdmc:/3ds/LocalSend/logs/latest.log`; output is capped at
 256 KiB and flushed line-by-line. Copy this file from the SD card after a failed
-test. It records public peer aliases/IPs and protocol metadata, but not the local
-fingerprint, private key material, or transfer tokens.
+test. It records peer aliases/IPs, filenames, sizes, protocol metadata, and TLS
+certificate-fingerprint prefixes, but not private-key material, full
+fingerprints, session IDs, transfer tokens, raw bodies, or file contents. Review
+the log before sharing because its LAN and filename metadata may be private.
 
 Read the sequence in order:
 
@@ -124,7 +140,7 @@ filesystem errno values, and protocol validation failures. It never logs raw
 file data, raw request bodies, tokens, or cryptographic private material.
 
 Warnings include the peer IP, stage, errno where applicable, bounded byte
-counts, and parser rejection reason. The raw JSON and fingerprints are not
+counts, and parser rejection reason. Raw JSON and full fingerprints are not
 logged.
 
 
@@ -157,8 +173,8 @@ Only a byte-identical final file with no misleading `.part` result is success.
 
 ## Single-file outgoing hardware test
 
-The first real-hardware attempt on 2026-08-24 selected `_setIcon.png` (3,220
-bytes) and the HTTP peer `Test Peer` at `192.0.2.5:53317`. It failed
+The first real-hardware attempt on 2026-08-24 selected a 3,220-byte PNG and an
+official macOS HTTP peer. It failed
 before sending the prepare request because libctru returned raw SOC:u
 `EINPROGRESS` (`-26`) through `SO_ERROR` after `select()` reported the socket
 writable. LocalSend3DS incorrectly treated that stale raw value as a terminal
@@ -167,22 +183,47 @@ connection error. The replacement uses the documented 3DS workaround: reissue
 real failure states. The user subsequently verified one HTTP single-file send
 to official LocalSend for macOS, including byte-identical output.
 
-1. In official LocalSend for macOS, disable encryption for this HTTP-only
-   implementation.
-2. Refresh both applications and confirm the Mac entry on the 3DS says `HTTP`.
+1. Confirm the 3DS system date and time are correct.
+2. With encryption enabled in official LocalSend for macOS, refresh both
+   applications and confirm the Mac entry on the 3DS says `HTTPS`.
 3. On the nearby-device screen press A, browse from `sdmc:/`, select one
    ordinary file, select the Mac, and press A again.
 4. Confirm the Mac shows the LocalSend3DS alias, filename, and size; accept it.
 5. Confirm both sides reach completion and the 3DS shows 100% with identical
    sent/total byte counts.
 6. Compare SHA-256 for the SD source and Mac result. Only identical hashes pass.
-7. Repeat once with B while the Mac approval dialog is pending and once during
+7. Inspect `latest.log` and require validity and self-signature success, an
+   exact fingerprint match, `fingerprint-pinned=yes`, and
+   `client-certificate-configured=yes` for both prepare-upload and upload.
+8. Restart LocalSend3DS and repeat once; require the logged local TLS identity
+   fingerprint prefix to remain unchanged.
+9. Repeat once with B while the Mac approval dialog is pending and once during
    upload; verify cancellation is clean and discovery still refreshes.
-8. If anything fails, copy `sdmc:/3ds/LocalSend/logs/latest.log` before the next
+10. If anything fails, copy `sdmc:/3ds/LocalSend/logs/latest.log` before the next
    launch. Relevant entries use the `outgoing` component and never contain full
    session IDs or file tokens. The replacement log records socket creation,
    `fcntl` setup, destination, initial `connect`, `select`, raw `SO_ERROR`, and
    the 3DS `connect` completion probe.
+
+The HTTPS/mTLS transfer and identity-reuse checks above have passed on real
+hardware. The independent destination size/SHA-256 comparison remains pending.
+To regression-test the plain HTTP transport, temporarily disable encryption on
+the recipient, confirm it advertises `HTTP`, and repeat the same transfer flow.
+
+## Linux hardware test — verified transfer coverage
+
+On 2026-08-26, a real New Nintendo 2DS XL and official LocalSend on Linux
+discovered each other on the same LAN. Linux then sent one file to
+LocalSend3DS successfully. No independent SHA-256 comparison, cancellation, or
+additional Linux failure-path test was reported.
+
+The first reverse-direction test used an earlier build that did not yet support
+the peer's advertised HTTPS protocol and correctly stopped before file data.
+After outgoing TLS was implemented, LocalSend3DS successfully sent one file to
+the normally encrypted official Linux recipient over HTTPS/mTLS. Both sides
+reached completion on real hardware. An independent destination file-size or
+SHA-256 comparison, cancellation, HTTP-mode send, and additional Linux failure
+paths have not been reported.
 
 ## Graphical-UI hardware verification and regression checklist
 
@@ -201,14 +242,15 @@ rendering/input issues:
 4. Exercise bottom-screen tabs and buttons by touch, then repeat navigation with
    L/R, D-Pad/Circle Pad, A, B, and Y. Press SELECT twice and confirm the
    developer view appears and returns without interrupting discovery.
-5. Confirm `Test Peer` appears as a device card and official LocalSend for
-   macOS still discovers `LocalSend 3DS` with model `New Nintendo 2DS XL`.
+5. Confirm the official macOS peer appears as a device card and official
+   LocalSend still discovers `LocalSend 3DS` with model
+   `New Nintendo 2DS XL`.
 6. Send one file from macOS. Confirm the graphical sender/filename/size approval
    view, accept by touch or A, observe progress on top, and verify completion on
    both screens. Compare SHA-256 with the SD result.
 7. From Send, browse the SD using touch and buttons, verify folders precede
    files and long lists scroll around the selection, choose one file and the
-   HTTP Mac card, accept on macOS, and compare SHA-256 at completion.
+   HTTPS Mac card, accept on macOS, and compare SHA-256 at completion.
 8. Repeat receive rejection and one active cancellation. Confirm friendly UI
    results, no crash/stale console text, and discovery remains functional.
 9. Press START from an idle screen and confirm a clean return to Homebrew
@@ -229,7 +271,8 @@ earlier feasibility installation as sufficient release verification:
 1. Install or update the CIA on current Luma3DS and launch it from HOME Menu.
 2. Confirm the final icon, title, static banner, and chime, then confirm the
    normal LocalSend3DS UI starts without a HOME Menu exception.
-3. Verify bidirectional discovery and one small HTTP transfer in each direction.
+3. Verify bidirectional discovery, one incoming HTTP transfer, and one outgoing
+   HTTPS/mTLS transfer.
 4. Change one Settings value, restart the CIA, and confirm it persists.
 5. Press START while idle and confirm a clean return to HOME Menu.
 6. Close and reopen the lid while idle. Transfer-time sleep/interruption remains

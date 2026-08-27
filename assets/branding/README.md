@@ -8,8 +8,12 @@ LocalSend without copying the official LocalSend logo.
 Regenerate the 48x48 SMDH input with:
 
 ```sh
+python3 -m pip install Pillow
 python3 scripts/generate-icon.py
 ```
+
+Pillow is needed only to regenerate the tracked `icon.png`; it is not required
+by the normal 3DSX or CIA build.
 
 The official LocalSend repository is Apache-2.0, but that license's section 6
 does not grant trademark permission. No separate NOTICE, asset license,

@@ -2,9 +2,13 @@
 
 This file records work intentionally left beyond the current v1.0.0 scope. The
 following foundations are complete and have been exercised on a real New
-Nintendo 2DS XL with official LocalSend for macOS:
+Nintendo 2DS XL with official LocalSend peers on macOS and Linux as recorded in
+the compatibility matrix:
 
-- bidirectional discovery and HTTP one-file transfer;
+- bidirectional discovery and one-file transfer over the supported HTTP receive
+  and HTTP/HTTPS outgoing paths;
+- persistent mutual-TLS client identity and fingerprint-pinned outgoing HTTPS
+  interoperability with official LocalSend on macOS and Linux;
 - a dual-screen Citro2D interface with touch and physical controls;
 - graphical receive approval, transfer progress, results, SD browsing, and
   recipient selection;
@@ -17,12 +21,13 @@ Nintendo 2DS XL with official LocalSend for macOS:
 
 Still deferred:
 
-- HTTPS/TLS, certificate persistence and verification, and encrypted-peer
-  interoperability;
-- PIN support and trusted-device policy;
+- incoming HTTPS-server support, PIN support, and trusted-device policy;
+- post-v1 migration from devkitPro's current `3ds-mbedtls` 2.28.8 package to a
+  newer supported package when one is available without sacrificing build
+  reproducibility;
 - multiple-file, folder, text, and clipboard transfers;
 - transfer history and broader settings;
-- interoperability testing with official LocalSend clients on Windows, Linux,
+- interoperability testing with official LocalSend clients on Windows,
   Android, and iOS;
 - testing on Nintendo 3DS-family models other than New Nintendo 2DS XL;
 - broader cancellation, network-interruption, low-storage, lid/sleep, and large

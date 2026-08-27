@@ -6,8 +6,8 @@ from libctru wherever practical.
 ```text
 main / app scenes / input / Citro2D dual-screen UI
           |             |                 |
-     discovery      HTTP server      outgoing HTTP client
-          |         incoming flow      prepare/upload/cancel
+     discovery      HTTP server     outgoing HTTP/HTTPS client
+          |         incoming flow    transport + TLS identity
           |             |                 |
      device registry    |           SD file browser + stream
           \             |                 /
@@ -45,8 +45,15 @@ main / app scenes / input / Citro2D dual-screen UI
 - `file_browser.c` owns a fixed-capacity SD directory view and path navigation.
 - `http_response.c` incrementally parses bounded Content-Length, chunked, and
   connection-delimited HTTP responses.
-- `outgoing_transfer.c` owns nonblocking connect/write/read states, prepare
-  response credentials, 32 KiB file streaming, progress, and cancellation.
+- `outgoing_transfer.c` owns prepare/upload/cancel states, response credentials,
+  32 KiB file streaming, progress, and cancellation without depending on the
+  wire transport.
+- `outgoing_transport.c` provides the shared nonblocking HTTP/HTTPS socket
+  interface. HTTPS uses TLS 1.2 mutual TLS and accepts a peer only after
+  validity, self-signature, and exact leaf-DER fingerprint checks succeed.
+- `tls_identity.c` generates, validates, persists, and recovers the RSA-2048
+  LocalSend3DS client certificate and private key used by both application
+  package formats.
 
 The application remains single-threaded: every socket is nonblocking and each
 frame performs bounded work. The UI thread never waits for remote approval or
@@ -76,6 +83,13 @@ identity. Quick Save invokes the same secure prepare-upload approval/session
 path as manual acceptance, and Auto Finish only dismisses successful terminal
 states after a fixed 2.5-second display interval.
 
+The persistent outgoing TLS identity is stored separately at
+`sdmc:/3ds/LocalSend/tls-identity.bin`. It uses the same SD path from the 3DSX
+and CIA builds and survives same-title CIA updates. Its key material is never
+written to the diagnostic log. A valid backup is recovered when possible;
+otherwise a missing or corrupt identity is regenerated. Identity unavailability
+disables HTTPS sending without changing the plain-HTTP path.
+
 ## Incoming transfer path
 
 The first receive slice remains single-threaded and nonblocking at the socket
@@ -95,8 +109,10 @@ accepted session with matching session/file/token and peer IP may receive bytes.
 One `LsOutgoingTransfer` owns a copied peer identity, one selected SD path,
 random file ID, bounded request/response buffers, remote session/token, file
 handle, 32 KiB stream buffer, and 64-bit sent/expected counters. Prepare and
-upload use separate HTTP/1.1 connections with exact Content-Length. Partial
-socket writes advance only the acknowledged portion of each buffer. Incoming
+upload use separate HTTP/1.1 connections over the peer's advertised HTTP or
+HTTPS transport with exact Content-Length. HTTPS connections independently
+perform mutual TLS and fingerprint pinning before any HTTP bytes are sent.
+Partial writes advance only the acknowledged portion of each buffer. Incoming
 prepare requests receive `409` while an outgoing transfer is active, preventing
 two constrained transfer paths from running concurrently while discovery and
 registration continue.
