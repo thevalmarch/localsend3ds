@@ -191,7 +191,7 @@ static void edit_device_name(LsApp *app, uint64_t now_ms) {
     if (button != SWKBD_BUTTON_CONFIRM) return;
     if (!ls_settings_set_alias(&updated, edited)) {
         (void)snprintf(app->status_message, sizeof(app->status_message),
-                       "Device name must be 1-64 valid UTF-8 bytes");
+                       "Device name must be 1-64 printable UTF-8 bytes");
         return;
     }
     if (!persist_settings(app, &updated)) return;

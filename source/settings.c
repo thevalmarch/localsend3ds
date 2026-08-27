@@ -35,14 +35,18 @@ static bool save_failure(const char *temporary_path, int error_number) {
     return false;
 }
 
-static size_t utf8_sequence_length(const unsigned char *input, size_t available) {
+static size_t utf8_sequence_length(const unsigned char *input, size_t available,
+                                   uint32_t *decoded_codepoint) {
     uint32_t codepoint;
     size_t count;
     size_t i;
     unsigned char first;
     if (available == 0) return 0;
     first = input[0];
-    if (first < 0x80u) return 1;
+    if (first < 0x80u) {
+        if (decoded_codepoint != NULL) *decoded_codepoint = first;
+        return 1;
+    }
     if (first >= 0xc2u && first <= 0xdfu) {
         count = 2;
         codepoint = first & 0x1fu;
@@ -64,6 +68,7 @@ static size_t utf8_sequence_length(const unsigned char *input, size_t available)
         (count == 4 && codepoint < 0x10000u) ||
         (codepoint >= 0xd800u && codepoint <= 0xdfffu) ||
         codepoint > 0x10ffffu) return 0;
+    if (decoded_codepoint != NULL) *decoded_codepoint = codepoint;
     return count;
 }
 
@@ -76,6 +81,7 @@ static bool valid_alias(const char *alias) {
     length = strlen(alias);
     if (length >= LS3DS_ALIAS_CAPACITY) return false;
     while (offset < length) {
+        uint32_t codepoint;
         size_t sequence;
         if (bytes[offset] < 0x80u) {
             if (bytes[offset] < 0x20u || bytes[offset] == 0x7fu) return false;
@@ -83,8 +89,10 @@ static bool valid_alias(const char *alias) {
             ++offset;
             continue;
         }
-        sequence = utf8_sequence_length(bytes + offset, length - offset);
+        sequence = utf8_sequence_length(bytes + offset, length - offset,
+                                        &codepoint);
         if (sequence == 0) return false;
+        if (codepoint >= 0x80u && codepoint <= 0x9fu) return false;
         non_whitespace = true;
         offset += sequence;
     }

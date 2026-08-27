@@ -31,6 +31,11 @@ void run_settings_tests(void) {
     char backup_path[256];
     char temporary_path[256];
     const char invalid_utf8[] = "Bad \xc0\xaf";
+    const char c1_next_line[] = "Bad \xc2\x85 name";
+    const char c1_application_program_command[] = "Bad \xc2\x9f name";
+    const char unicode_resume[] = "R\xc3\xa9sum\xc3\xa9";
+    const char unicode_snow[] = "\xe9\x9b\xaa";
+    const char unicode_soylemez[] = "S\xc3\xb6ylemez";
     LsSettings settings;
     LsSettings loaded;
 
@@ -46,7 +51,16 @@ void run_settings_tests(void) {
     assert(!ls_settings_set_alias(&settings, ""));
     assert(!ls_settings_set_alias(&settings, "   "));
     assert(!ls_settings_set_alias(&settings, "line\nbreak"));
+    assert(!ls_settings_set_alias(&settings, "line\rbreak"));
+    assert(!ls_settings_set_alias(&settings, "line\tbreak"));
+    assert(!ls_settings_set_alias(&settings, "delete\x7f"));
+    assert(!ls_settings_set_alias(&settings, c1_next_line));
+    assert(!ls_settings_set_alias(&settings, c1_application_program_command));
     assert(!ls_settings_set_alias(&settings, invalid_utf8));
+    assert(ls_settings_set_alias(&settings, "Volkan"));
+    assert(ls_settings_set_alias(&settings, unicode_resume));
+    assert(ls_settings_set_alias(&settings, unicode_snow));
+    assert(ls_settings_set_alias(&settings, unicode_soylemez));
     assert(ls_settings_set_alias(&settings, "Val's 3DS"));
     settings.quick_save = true;
     settings.auto_finish = false;
@@ -127,6 +141,19 @@ void run_settings_tests(void) {
     assert(access(backup_path, F_OK) == 0);
     assert(rmdir(temporary_path) == 0);
     assert(unlink(backup_path) == 0);
+
+    /* C1 controls are invalid both when loaded and when saved directly. */
+    {
+        char invalid_settings[256];
+        assert(snprintf(invalid_settings, sizeof(invalid_settings),
+                        "version=1\ndevice_name=%s\nquick_save=0\nauto_finish=1\n",
+                        c1_next_line) > 0);
+        write_text(path, invalid_settings);
+        assert(!ls_settings_load(&loaded, path));
+        assert(strcmp(loaded.alias, LS3DS_DEFAULT_ALIAS) == 0);
+        (void)snprintf(settings.alias, sizeof(settings.alias), "%s", c1_next_line);
+        assert(!ls_settings_save(&settings, path));
+    }
 
     assert(unlink(path) == 0);
     assert(rmdir(directory) == 0);

@@ -308,7 +308,7 @@ static const char *settings_value(const LsApp *app, LsSettingsItem item) {
         case LS_SETTING_AUTO_FINISH:
             return app->settings.auto_finish ? "On" : "Off";
         case LS_SETTING_SAVE_FOLDER: return "Downloads";
-        case LS_SETTING_CONNECTION: return "HTTP";
+        case LS_SETTING_CONNECTION: return "Receive: HTTP";
         case LS_SETTING_PORT: return "53317";
         case LS_SETTING_ADVANCED: return "Open";
         case LS_SETTING_ABOUT_APP: return "Unofficial client";
@@ -324,7 +324,7 @@ static const char *settings_description(LsSettingsItem item) {
         case LS_SETTING_DEVICE_NAME:
             return "Name advertised to nearby LocalSend devices. Press A or tap to edit.";
         case LS_SETTING_QUICK_SAVE:
-            return "Accept incoming files automatically without showing the approval step.";
+            return "Automatically accept incoming files. Use only on a trusted local network.";
         case LS_SETTING_AUTO_FINISH:
             return "Return to Receive or Send shortly after a successful transfer.";
         case LS_SETTING_SAVE_FOLDER:
@@ -433,12 +433,17 @@ static void draw_top_idle(LsApp *app) {
     } else if (app->state == LS_APP_SETTINGS) {
         LsSettingsItem item = app->selected_setting < LS_SETTING_COUNT ?
             (LsSettingsItem)app->selected_setting : LS_SETTING_DEVICE_NAME;
+        u32 status_color = strncmp(app->status_message, "Could not", 9) == 0 ||
+                           strstr(app->status_message, "must be") != NULL ?
+                               COLOR_ERROR : COLOR_MUTED;
         draw_text(ui, settings_label(item), 40, 112, 0.58f, COLOR_TEXT,
                   C2D_AlignLeft, 310);
         draw_text(ui, settings_value(app, item), 40, 142, 0.46f,
                   COLOR_PRIMARY_DARK, C2D_AlignLeft, 310);
         draw_text(ui, settings_description(item), 40, 173, 0.40f,
                   COLOR_MUTED, C2D_AlignLeft, 320);
+        draw_text(ui, app->status_message, 200, 220, 0.34f, status_color,
+                  C2D_AlignCenter, 360);
     } else if (selected != NULL) {
         draw_device_icon(64, 120, selected->device_type, COLOR_PRIMARY);
         draw_text(ui, selected->alias, 112, 112, 0.62f, COLOR_TEXT,
