@@ -432,7 +432,7 @@ static LsDeviceType parse_device_type(const char *value) {
     return LS_DEVICE_DESKTOP;
 }
 
-static bool valid_peer_display_text(const char *value, bool allow_empty) {
+static bool valid_network_display_text(const char *value, bool allow_empty) {
     const unsigned char *current = (const unsigned char *)value;
     if (value == NULL || (!allow_empty && value[0] == '\0')) return false;
     while (*current != '\0') {
@@ -587,8 +587,8 @@ LsParseResult ls_protocol_parse_device(const char *json, size_t length,
         out->alias[0] == '\0' || out->fingerprint[0] == '\0') {
         return LS_PARSE_MISSING_FIELD;
     }
-    if (!valid_peer_display_text(out->alias, false) ||
-        !valid_peer_display_text(out->device_model, true)) {
+    if (!valid_network_display_text(out->alias, false) ||
+        !valid_network_display_text(out->device_model, true)) {
         return LS_PARSE_INVALID_VALUE;
     }
     if (!compatible_protocol_version(out->version)) {
@@ -681,6 +681,10 @@ static LsParseResult parse_file_object(JsonCursor *cursor,
             result = parse_string(cursor, file->id, sizeof(file->id));
         } else if (field == FILE_FIELD_NAME) {
             result = parse_string(cursor, file->file_name, sizeof(file->file_name));
+            if (result == JSON_OK &&
+                !valid_network_display_text(file->file_name, true)) {
+                result = JSON_INVALID;
+            }
         } else if (field == FILE_FIELD_SIZE) {
             result = parse_u64_integer(cursor, &file->size);
         } else if (field == FILE_FIELD_TYPE) {

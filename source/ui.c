@@ -252,6 +252,9 @@ static const char *device_type_label(LsDeviceType type) {
 }
 
 static const char *friendly_outgoing_error(const LsOutgoingTransfer *transfer) {
+    if (transfer->state == LS_OUTGOING_REJECTED && transfer->remote_status == 401) {
+        return "PIN-protected recipients are not supported yet.";
+    }
     if (transfer->state == LS_OUTGOING_REJECTED) return "The recipient declined this transfer.";
     if (transfer->state == LS_OUTGOING_CANCELLED) return "Transfer cancelled.";
     if (strstr(transfer->error, "timed out") != NULL) return "The connection timed out. Try again.";
@@ -327,7 +330,7 @@ static const char *settings_description(LsSettingsItem item) {
         case LS_SETTING_SAVE_FOLDER:
             return "Read-only: sdmc:/3ds/LocalSend/Downloads/";
         case LS_SETTING_CONNECTION:
-            return "Read-only plain HTTP. TLS is not implemented yet.";
+            return "Receive: HTTP. Send: HTTP or HTTPS; HTTPS uses fingerprint-pinned mutual TLS.";
         case LS_SETTING_PORT:
             return "Read-only LocalSend HTTP and discovery port.";
         case LS_SETTING_ADVANCED:
@@ -335,7 +338,7 @@ static const char *settings_description(LsSettingsItem item) {
         case LS_SETTING_ABOUT_APP:
             return "Unofficial LocalSend client for Nintendo 3DS.";
         case LS_SETTING_VERSION:
-            return "Current LocalSend3DS development version.";
+            return "LocalSend3DS v1.0.0. PIN-protected recipients are not supported.";
         case LS_SETTING_AUTHOR:
             return "LocalSend3DS author.";
         case LS_SETTING_LICENSE:

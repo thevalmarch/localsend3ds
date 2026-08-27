@@ -47,6 +47,47 @@ static LsPrepareUploadRequest parsed_prepare(void) {
     return request;
 }
 
+static LsParseResult parse_prepare_filename(const char *encoded_filename,
+                                            LsPrepareUploadRequest *request) {
+    char json[1024];
+    int length = snprintf(
+        json, sizeof(json),
+        "{\"info\":{\"alias\":\"Sender\",\"version\":\"2.2\","
+        "\"deviceModel\":\"macOS\",\"deviceType\":\"desktop\","
+        "\"fingerprint\":\"sender\",\"port\":53317,"
+        "\"protocol\":\"http\",\"download\":false},"
+        "\"files\":{\"file-1\":{\"id\":\"file-1\","
+        "\"fileName\":\"%s\",\"size\":1,\"fileType\":\"application/octet-stream\"}}}",
+        encoded_filename);
+    assert(length > 0 && (size_t)length < sizeof(json));
+    return ls_protocol_parse_prepare_upload(json, (size_t)length,
+                                            "127.0.0.1", request);
+}
+
+static void test_prepare_filename_display_validation(void) {
+    static const char *const rejected[] = {
+        "bad\\nname.txt",
+        "bad\\rname.txt",
+        "bad\\tname.txt",
+        "bad\\bname.txt",
+        "bad\\fname.txt",
+        "bad\\u001fname.txt",
+        "bad\\u007fname.txt",
+        "bad\\u0085name.txt",
+        "bad\xC0\xAFname.txt"
+    };
+    LsPrepareUploadRequest request;
+    size_t i;
+    for (i = 0; i < sizeof(rejected) / sizeof(rejected[0]); ++i) {
+        assert(parse_prepare_filename(rejected[i], &request) ==
+               LS_PARSE_INVALID_VALUE);
+    }
+    assert(parse_prepare_filename("R\xC3\xA9sum\xC3\xA9-\xE9\x9B\xAA.txt", &request) ==
+           LS_PARSE_OK);
+    assert(strcmp(request.file.file_name,
+                  "R\xC3\xA9sum\xC3\xA9-\xE9\x9B\xAA.txt") == 0);
+}
+
 static void test_prepare_parser(void) {
     const char missing_info[] =
         "{\"files\":{\"x\":{\"id\":\"x\",\"fileName\":\"a\","
@@ -497,6 +538,7 @@ static void test_prepare_parser_random_bytes(void) {
 }
 
 void run_receive_tests(void) {
+    test_prepare_filename_display_validation();
     test_prepare_parser();
     test_filename_and_collisions();
     test_sha256();

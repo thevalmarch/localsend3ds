@@ -29,6 +29,12 @@ if [ -z "${DEVKITARM:-}" ] || [ ! -d "${DEVKITARM:-/nonexistent}" ]; then
     missing=1
 fi
 
+portlibs_3ds=${PORTLIBS:-${DEVKITPRO:-/nonexistent}/portlibs/3ds}
+if [ ! -f "$portlibs_3ds/lib/libmbedtls.a" ]; then
+    echo "error: 3ds-mbedtls is missing. Install the official devkitPro 3ds-mbedtls package" >&2
+    missing=1
+fi
+
 for tool in arm-none-eabi-gcc 3dsxtool smdhtool; do
     if ! find_tool "$tool" >/dev/null; then
         echo "error: required tool not found: $tool" >&2
@@ -41,7 +47,7 @@ if ! find_tool 3dslink >/dev/null; then
 fi
 
 if [ "$missing" -ne 0 ]; then
-    echo "Install devkitPro's official macOS package and the 3ds-dev group." >&2
+    echo "Install devkitPro's official macOS package, the 3ds-dev group, and 3ds-mbedtls." >&2
     exit 1
 fi
 

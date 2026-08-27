@@ -436,8 +436,8 @@ static void test_mutual_tls_and_pinned_response(void) {
     assert(rmdir(directory) == 0);
 }
 
-static void test_wrong_pin_fails_handshake(void) {
-    char directory_template[] = "/tmp/localsend3ds-wrong-pin.XXXXXX";
+static void test_wrong_fingerprint_fails_handshake(void) {
+    char directory_template[] = "/tmp/localsend3ds-wrong-fingerprint.XXXXXX";
     char *directory = mkdtemp(directory_template);
     char client_path[512];
     char server_path[512];
@@ -537,6 +537,6 @@ void run_tls_tests(void) {
     test_certificate_validity_classification();
     test_handshake_timeout_cleanup();
     test_mutual_tls_and_pinned_response();
-    test_wrong_pin_fails_handshake();
+    test_wrong_fingerprint_fails_handshake();
     test_live_official_peer_if_requested();
 }
