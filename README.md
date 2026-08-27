@@ -214,5 +214,6 @@ code and logo artwork are not bundled. See
 
 ## License
 
-LocalSend3DS's original source code and project artwork are available under the
-[MIT License](LICENSE). Copyright © 2026 Volkan 'Val March' Söylemez.
+LocalSend3DS's original source code and project artwork are available under the [MIT License](LICENSE).
+
+Copyright © 2026 Volkan 'Val March' Söylemez.
