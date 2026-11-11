@@ -465,7 +465,7 @@ static const char *settings_description(LsSettingsItem item) {
         case LS_SETTING_ABOUT_APP:
             return "Unofficial LocalSend client for Nintendo 3DS.";
         case LS_SETTING_VERSION:
-            return "LocalSend3DS v1.0.0. PIN-protected recipients are not supported.";
+            return "LocalSend3DS " LS3DS_APP_VERSION ". PIN-protected recipients are not supported.";
         case LS_SETTING_AUTHOR:
             return "LocalSend3DS author.";
         case LS_SETTING_LICENSE:

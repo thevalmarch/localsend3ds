@@ -178,7 +178,7 @@ static void test_serialization_round_trip(void) {
 }
 
 static void test_release_version(void) {
-    assert(strcmp(LS3DS_APP_VERSION, "v1.0.0") == 0);
+    assert(strcmp(LS3DS_APP_VERSION, "v1.1.0") == 0);
 }
 
 static void test_registry(void) {
