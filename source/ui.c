@@ -19,19 +19,54 @@
 #define UI_TEXT_GLYPHS 4096
 #define UI_MEASURE_GLYPHS 512
 
-#define COLOR_BACKGROUND C2D_Color32(0xF7, 0xFB, 0xFA, 0xFF)
-#define COLOR_SURFACE C2D_Color32(0xE8, 0xF2, 0xF0, 0xFF)
-#define COLOR_SURFACE_HIGH C2D_Color32(0xD9, 0xEB, 0xE8, 0xFF)
-#define COLOR_PRIMARY C2D_Color32(0x00, 0x8F, 0x88, 0xFF)
-#define COLOR_PRIMARY_DARK C2D_Color32(0x00, 0x59, 0x55, 0xFF)
-#define COLOR_ON_PRIMARY C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF)
-#define COLOR_TEXT C2D_Color32(0x18, 0x1D, 0x1C, 0xFF)
-#define COLOR_MUTED C2D_Color32(0x5C, 0x67, 0x65, 0xFF)
-#define COLOR_BORDER C2D_Color32(0xB9, 0xCC, 0xC9, 0xFF)
-#define COLOR_SUCCESS C2D_Color32(0x2E, 0x7D, 0x32, 0xFF)
-#define COLOR_ERROR C2D_Color32(0xBA, 0x1A, 0x1A, 0xFF)
-#define COLOR_ERROR_SURFACE C2D_Color32(0xFF, 0xDA, 0xD6, 0xFF)
-#define COLOR_WARNING C2D_Color32(0x9A, 0x67, 0x00, 0xFF)
+typedef struct {
+    u32 background;
+    u32 surface;
+    u32 surface_high;
+    u32 primary;
+    u32 primary_dark;
+    u32 on_primary;
+    u32 text;
+    u32 muted;
+    u32 border;
+    u32 success;
+    u32 error;
+    u32 error_surface;
+    u32 warning;
+} LsUiPalette;
+
+/* Original Light appearance, packed as 0xAABBGGRR (C2D_Color32 order).
+ * Integer constants allow a read-only initializer in C. */
+static const LsUiPalette light_palette = {
+    .background = 0xFFFAFBF7u,
+    .surface = 0xFFF0F2E8u,
+    .surface_high = 0xFFE8EBD9u,
+    .primary = 0xFF888F00u,
+    .primary_dark = 0xFF555900u,
+    .on_primary = 0xFFFFFFFFu,
+    .text = 0xFF1C1D18u,
+    .muted = 0xFF65675Cu,
+    .border = 0xFFC9CCB9u,
+    .success = 0xFF327D2Eu,
+    .error = 0xFF1A1ABAu,
+    .error_surface = 0xFFD6DAFFu,
+    .warning = 0xFF00679Au,
+};
+
+/* Only Light is available; future palette selection can replace this binding. */
+#define COLOR_BACKGROUND (light_palette.background)
+#define COLOR_SURFACE (light_palette.surface)
+#define COLOR_SURFACE_HIGH (light_palette.surface_high)
+#define COLOR_PRIMARY (light_palette.primary)
+#define COLOR_PRIMARY_DARK (light_palette.primary_dark)
+#define COLOR_ON_PRIMARY (light_palette.on_primary)
+#define COLOR_TEXT (light_palette.text)
+#define COLOR_MUTED (light_palette.muted)
+#define COLOR_BORDER (light_palette.border)
+#define COLOR_SUCCESS (light_palette.success)
+#define COLOR_ERROR (light_palette.error)
+#define COLOR_ERROR_SURFACE (light_palette.error_surface)
+#define COLOR_WARNING (light_palette.warning)
 
 static const LsUiRect nav_receive = {0, 208, 106, 32};
 static const LsUiRect nav_send = {106, 208, 107, 32};
