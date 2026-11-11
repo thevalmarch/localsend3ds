@@ -18,12 +18,18 @@ main / app scenes / input / Citro2D dual-screen UI
 
 ## Current implementation
 
+This branch prepares unreleased v1.1.0. The architecture below describes its
+source implementation, not completed validation of final release packages.
+
 - `main.c` owns process entry only.
 - `app.c` owns lifecycle, the small scene state, input, and service ordering.
 - `ui.c` owns Citro2D lifecycle, both-screen presentation, touch hit-testing,
   and friendly error presentation. It never manipulates sockets or files.
 - `ui_model.c` owns platform-independent rectangle, list-window, percentage,
-  and byte-size helpers used by the renderer and host tests.
+  and byte-size helpers, plus theme-picker cursor/window and touch-mapping
+  logic used by the renderer and host tests.
+- `settings.c` owns defaults, validation, SD persistence/recovery and the stable
+  theme identifiers shared by the application and renderer.
 - `network.c` owns SOC shared memory and local IPv4 initialization.
 - `identity.c` detects the hardware model and uses the PS service for random
   identity bytes.
@@ -82,6 +88,33 @@ copy is valid. The editable alias is copied into the announced `LsDevice`
 identity. Quick Save invokes the same secure prepare-upload approval/session
 path as manual acceptance, and Auto Finish only dismisses successful terminal
 states after a fixed 2.5-second display interval.
+
+### Runtime themes (unreleased v1.1.0)
+
+`LsSettings.theme` is the authoritative theme ID. The renderer resolves it once
+per frame to an immutable `LsUiPalette` and uses that palette for both screens.
+The 13 roles cover backgrounds, normal/selected surfaces, text, controls,
+borders and status colors. Light, Dark, OLED Black, Yaru Light and Yaru Dark
+use the same component geometry and rendering paths, without new textures,
+allocations, external theme files or per-frame SD reads. The former compile-time
+preview flags are rejected so they cannot override saved settings.
+
+The Settings picker displays three entries at a time. Its cursor determines a
+bounded window; rendering and touch mapping share the row geometry and window
+calculation. A separate Saved marker identifies the active theme. A/touch
+confirmation applies a candidate only after the existing SD-safe save succeeds;
+B/Back discards the candidate, and a save failure retains the prior theme.
+
+Configuration remains `version=1`. The optional `theme` field accepts `light`,
+`dark`, `oled`, `yaru_light` or `yaru_dark`. Missing/unknown values select the
+original Light palette while preserving other valid preferences. Duplicate
+theme fields are structural corruption and use the existing backup/default
+recovery policy. v1.0.0 ignores the unknown field when reading a newer file;
+saving with v1.0.0 drops the theme field. No explicit migration is required.
+
+Yaru-inspired palettes adapt verified color references to the shared roles;
+they do not import Flutter/Yaru implementations or assets. See
+[third-party notices](../THIRD_PARTY_NOTICES.md#yaru-inspired-color-palettes).
 
 The persistent outgoing TLS identity is stored separately at
 `sdmc:/3ds/LocalSend/tls-identity.bin`. It uses the same SD path from the 3DSX

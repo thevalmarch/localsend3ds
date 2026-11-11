@@ -1,7 +1,7 @@
 # Deferred product backlog
 
-This file records work intentionally left beyond the current v1.0.0 scope. The
-following foundations are complete and have been exercised on a real New
+This file separates released v1.0.0 foundations, unreleased v1.1.0 preparation,
+and deferred work. The following v1.0.0 foundations were exercised on a real New
 Nintendo 2DS XL with official LocalSend peers on macOS, Linux, and Android as
 recorded in the compatibility matrix:
 
@@ -21,8 +21,23 @@ recorded in the compatibility matrix:
   `.3dsx` dependency;
 - original LocalSend3DS icon, HOME Menu banner, and menu chime.
 
-Still deferred:
+## Unreleased v1.1.0 preparation
 
+Implemented and tested through development `.3dsx` builds on New Nintendo 2DS XL:
+
+- Light, Dark, OLED Black, Yaru Light and Yaru Dark palettes;
+- one Settings theme picker with physical controls and touch scrolling;
+- theme persistence, cancellation and legacy v1.0.0 settings compatibility;
+- sending/receiving, transfer screens and clean exit with the themed UI.
+
+The version metadata is prepared for v1.1.0. Final release-candidate `.3dsx`
+testing and a locally built v1.1.0 CIA installation/HOME Menu test remain
+pending. Development-build results do not complete those package checks. See
+[testing](testing.md#unreleased-v110-theme-validation).
+
+## Still deferred
+
+- custom SD-card themes;
 - incoming HTTPS-server support, PIN support, and trusted-device policy;
 - post-v1 migration from devkitPro's current `3ds-mbedtls` 2.28.8 package to a
   newer supported package when one is available without sacrificing build

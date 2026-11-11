@@ -14,6 +14,9 @@ custom server, cloud service, or account.
 LocalSend3DS is an independent project and is not affiliated with or endorsed
 by the LocalSend maintainers or Nintendo.
 
+The published release is **v1.0.0**. This development branch prepares
+**v1.1.0**, which is unreleased; v1.1.0 binaries are not yet available.
+
 ## Features
 
 - Automatic LocalSend discovery over the local network
@@ -92,6 +95,25 @@ system date and time must be correct for certificate-validity checks.
 PIN-protected recipients are not supported. Disable the recipient's PIN before
 sending from LocalSend3DS; encryption itself can remain enabled.
 
+### Themes (unreleased v1.1.0)
+
+The development version adds **Settings → Theme** with Light, Dark, OLED Black,
+Yaru Light and Yaru Dark. Use touch or A to open the picker, D-Pad/Circle Pad
+or the touch arrows to move through choices, and A or a theme tap to save.
+B/Back cancels. The highlighted card is the cursor; **Saved** marks the active
+theme. The choice persists across restarts and is shared by `.3dsx` and CIA
+through the same SD settings file.
+
+Fresh installations and existing v1.0.0 settings default to the unchanged
+original Light appearance. Device name, Quick Save and Auto Finish are
+preserved. OLED Black is a black appearance for the 3DS's LCD screens; it
+implies no OLED hardware or battery benefit. Yaru palettes are adaptations for
+3DS, not exact Flutter reproductions; see [third-party notices](THIRD_PARTY_NOTICES.md#yaru-inspired-color-palettes).
+
+All five themes passed development `.3dsx` testing on a New Nintendo 2DS XL.
+Final v1.1.0 release-candidate `.3dsx` testing and native CIA installation/HOME
+Menu testing remain pending. See [testing status](docs/testing.md#unreleased-v110-theme-validation).
+
 ### Controls
 
 - D-Pad or Circle Pad: move through lists
@@ -133,6 +155,12 @@ brew install mbedtls@2
 make -f Makefile.host test
 ```
 
+On the v1.1.0 development branch, also check palette snapshots and contrast:
+
+```sh
+python3 -B tests/test_palettes.py
+```
+
 The Homebrew package is needed only for native macOS tests, not at runtime on
 the 3DS.
 
@@ -161,10 +189,12 @@ LocalSend peers on macOS, Linux, and Android:
   independent checksum comparison or Android-specific cancellation/failure-path
   coverage was reported.
 
-The outgoing HTTPS/mTLS hardware tests used the native CIA. The TLS-enabled
+The v1.0.0 outgoing HTTPS/mTLS hardware tests used the native CIA. Its TLS-enabled
 `.3dsx` release candidate also launches successfully through Homebrew Launcher
 on real hardware. That `.3dsx` result is a launch smoke test; transfer coverage
-has not been separately attributed to that package format.
+was not separately attributed to that v1.0.0 package format. Later five-theme
+development `.3dsx` tests included sending and receiving, but do not establish
+final v1.1.0 package validation or additional peer-platform coverage.
 
 The outgoing HTTPS transfers completed on macOS and Linux, but their destination
 files have not yet received an independent size or SHA-256 comparison. An

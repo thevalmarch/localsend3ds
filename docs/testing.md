@@ -46,6 +46,23 @@ cover:
   secure session/token path;
 - 10,000 randomized inputs each for device and prepare-upload parsers.
 
+The unreleased v1.1.0 host suite also covers all five stable theme identifiers,
+save/load and simulated restart, default Light for fresh/legacy configurations,
+unknown identifiers, duplicate-field recovery, failed saves retaining runtime
+state, alias/toggle preservation, picker confirmation/cancellation, three-row
+scrolling, touch hitboxes and Saved markers inside/outside the window.
+
+Run the separate palette regression check explicitly; it is not invoked by
+`Makefile.host`:
+
+```sh
+python3 -B tests/test_palettes.py
+```
+
+It checks exact RGB snapshots for all five palettes, including preservation of
+the original three, and mathematical Yaru text/control contrast. It does not
+render Citro2D or replace real-hardware visual testing.
+
 ## Cross-build gate
 
 Run `scripts/check-toolchain.sh`, then `make`. The required artifact is
@@ -83,9 +100,48 @@ LocalSend clients on Windows or iOS. Cancellation, sleep/lid behavior,
 network interruption, low-storage handling, and the full large-file matrix
 remain recommended release-regression coverage unless separately recorded as
 verified below. The completed outgoing HTTPS transfers have not received an
-independent destination size or SHA-256 comparison. The final TLS-enabled
-`.3dsx` launch is verified, but a transfer has not been separately attributed
-to that package format.
+independent destination size or SHA-256 comparison. For the historical v1.0.0
+final `.3dsx`, launch was verified but transfer coverage was not separately
+attributed to that artifact. Later development-build transfer coverage is
+recorded separately below.
+
+## Unreleased v1.1.0 theme validation
+
+The user verified development `.3dsx` builds on a real New Nintendo 2DS XL:
+
+- all five themes render correctly on both screens, including Yaru orange
+  controls and normal/low-brightness text/card readability;
+- the original Light appearance is restored when selected;
+- a legacy v1.0.0 settings file starts in Light and preserves device alias,
+  Quick Save and Auto Finish;
+- the picker opens with A or touch; D-Pad/Circle Pad and touch arrows reach
+  all five entries; touch selects the displayed row and Saved markers follow
+  the saved entry correctly;
+- B/Back cancels without changing the theme; successful confirmation returns
+  to Settings with the Theme row selected;
+- theme and existing settings persist after restart;
+- approval/rejection, progress/results, file sending/receiving and clean START
+  exit pass with the themed UI.
+
+One runtime-theme development build was launched through Homebrew Launcher
+from the LocalSend Downloads directory. This is valid development coverage;
+the documented installation path should still be exercised for the final RC.
+The results do not add an independent checksum comparison or establish a new
+peer-specific transport, cancellation matrix, large-file, sleep or low-storage
+test result.
+
+| Validation stage | Status |
+|---|---|
+| Five-theme development `.3dsx` hardware testing | Completed on New Nintendo 2DS XL |
+| Final v1.1.0 release-candidate `.3dsx` testing | Not yet completed |
+| Final v1.1.0 CIA installation and HOME Menu testing | Not yet completed; CIA candidate not yet built or installed |
+
+Before release, record the exact candidate hashes locally and repeat startup,
+five-theme selection/cancellation/scrolling, restart persistence, preservation
+of legacy settings, basic send/receive and clean exit using the final artifacts.
+For CIA, also verify the installed package version, HOME Menu icon/banner/chime,
+and same-title update from v1.0.0 after backing up `sdmc:/3ds/LocalSend/`.
+These are pending checks, not completed results.
 
 ## Final v1.0.0 release-candidate hardware smoke — verified 2026-08-27
 
@@ -292,14 +348,16 @@ rendering/input issues:
 
 ## Native-CIA hardware verification and regression checklist
 
-The native CIA has been installed and launched successfully from HOME Menu on a
+The v1.0.0 native CIA was installed and launched successfully from HOME Menu on a
 real New Nintendo 2DS XL. Its graphical application UI, Settings storage paths,
 and HOME Menu banner/chime use the same project code and generated assets as the
 supported build. The CIA is native and has no external `.3dsx` dependency.
 
 The final v1.0.0 native CIA has passed direct HOME Menu launch, graphical UI,
 Settings persistence after restart, and clean-exit checks. Retain the broader
-checklist below for future release regression and failure-path testing:
+checklist below for future release regression and failure-path testing.
+The v1.1.0 CIA candidate has not yet been built or installed; shared application
+code and successful development `.3dsx` tests do not establish CIA readiness:
 
 1. Install or update the CIA on current Luma3DS and launch it from HOME Menu.
 2. Confirm the final icon, title, static banner, and chime, then confirm the

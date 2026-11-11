@@ -3,6 +3,10 @@
 No row below is marked working until tested with an official client and real
 Nintendo 3DS-family hardware. Host parser/socket tests are not substitutes.
 
+The matrix retains the established v1.0.0 interoperability evidence. The
+unreleased v1.1.0 theme tests below add development-build coverage without
+claiming new peer platforms or final release-package validation.
+
 | Direction | Discovery | One file | Transport verified | Independent integrity check | Cancel | Multi-file | PIN |
 |---|---|---|---|---|---|---|---|
 | macOS -> 3DS | **Verified on New Nintendo 2DS XL** | **Verified on New Nintendo 2DS XL** | HTTP | **SHA-256 matched for one tested file** | Implemented; not hardware-verified | Not implemented | Not implemented |
@@ -27,6 +31,29 @@ PIN support is not implemented. Receive and outgoing transfers accept exactly
 one file per session; batches, folders, text, and clipboard transfers are not
 implemented. Sleep/lid interruption, cancellation, low-storage, and large-file
 behavior have not received broad real-hardware coverage.
+
+## Unreleased v1.1.0 theme compatibility
+
+On a real New Nintendo 2DS XL, development `.3dsx` builds passed testing for
+Light, Dark, OLED Black, Yaru Light and Yaru Dark on both screens, including
+normal/low-brightness readability. The five-entry picker passed physical and
+touch navigation, scrolling, visible-row selection, Saved-marker and cancel
+checks. Themes persisted after restart while the alias and existing toggles
+remained intact. Sending, receiving, approval/rejection, progress/results and
+clean START exit also passed in the development builds.
+
+These results do not establish new checksums, peer-specific transports,
+additional hardware models or broad failure-path coverage.
+
+| v1.1.0 validation scope | Status |
+|---|---|
+| Five-theme development `.3dsx`, New Nintendo 2DS XL | Hardware-tested |
+| Final release-candidate `.3dsx` | Pending |
+| Final native CIA installation and HOME Menu operation | Pending; candidate not yet built or installed |
+
+The v1.0.0 native CIA results below remain historical evidence for that release.
+They are not v1.1.0 CIA verification. See the
+[current test record](testing.md#unreleased-v110-theme-validation).
 
 ## Verified discovery milestone — 2026-08-24
 

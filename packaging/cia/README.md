@@ -4,6 +4,10 @@ This optional package contains the same LocalSend3DS executable built by the
 top-level Makefile. It is a native HOME Menu application: it does not use
 `hb:ldr`, APT chainloading, or an external 3DSX.
 
+This branch targets **unreleased v1.1.0**. Its five themes have been tested in
+development `.3dsx` builds, but the v1.1.0 CIA candidate has not yet been built,
+installed or tested from HOME Menu. The published v1.0.0 package is separate.
+
 The normal top-level `make` remains the supported 3DSX build. Build both the
 3DSX and the optional CIA with the `3ds-dev` and `3ds-mbedtls` packages
 installed:
@@ -29,7 +33,19 @@ Package identity:
 - Unique ID: `0xF5D53`
 - Product code: `CTR-P-LS3D`
 - Process name: `LS3DS`
-- Version: `1.0.0`
+- Source package version: `1.1.0` (unreleased)
+
+Packaging derives the major/minor/micro arguments from `LS3DS_APP_VERSION` in
+`include/config.h` and depends on that header. Malformed or out-of-range
+versions fail before packaging. Inspect the arguments without building:
+
+```sh
+make -C packaging/cia print-version
+```
+
+The supported CIA and `.3dsx` share application code and the Theme setting;
+they read the same `sdmc:/3ds/LocalSend/settings.conf`. Original Light remains
+the default when no theme is specified, including legacy v1.0.0 files.
 
 Outgoing HTTPS uses Mbed TLS over the ordinary `soc:U` socket service and
 PS-backed entropy through `ps:ps`. The native CIA does not request or require
@@ -37,7 +53,8 @@ the Nintendo `ssl:C` service.
 
 The CIA is not Nintendo-signed and requires custom firmware with signature
 patches. Its static HOME Menu banner is generated from the original
-LocalSend3DS mark and in-application palette. The accompanying short menu chime
+LocalSend3DS mark and original Light palette; runtime theme selection does not
+change HOME Menu assets. The accompanying short menu chime
 is an original, deterministically synthesized, non-looping PCM16 sound. The
 build validates that the CWAV embedded by `bannertool` is byte-identical to the
 source WAV samples before invoking `makerom`.
