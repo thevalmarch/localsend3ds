@@ -35,6 +35,35 @@ typedef struct {
     u32 warning;
 } LsUiPalette;
 
+/* Development preview only: build with -DLS3DS_UI_DARK_PREVIEW=1.
+ * Normal builds remain Light; there is no persisted appearance setting. */
+#ifndef LS3DS_UI_DARK_PREVIEW
+#define LS3DS_UI_DARK_PREVIEW 0
+#endif
+#if LS3DS_UI_DARK_PREVIEW != 0 && LS3DS_UI_DARK_PREVIEW != 1
+#error "LS3DS_UI_DARK_PREVIEW must be 0 or 1"
+#endif
+
+#if LS3DS_UI_DARK_PREVIEW
+/* Packed 0xAABBGGRR. The historical primary_dark role is used as accent
+ * text, so it becomes a light teal on dark surfaces. */
+static const LsUiPalette dark_palette = {
+    .background = 0xFF191910u,    /* #101919 */
+    .surface = 0xFF27281Bu,       /* #1B2827 */
+    .surface_high = 0xFF3D402Bu,  /* #2B403D */
+    .primary = 0xFFCAD863u,       /* #63D8CA */
+    .primary_dark = 0xFFDAE68Du,  /* #8DE6DA */
+    .on_primary = 0xFF313700u,    /* #003731 */
+    .text = 0xFFEBEEE4u,          /* #E4EEEB */
+    .muted = 0xFFC1C6B1u,         /* #B1C6C1 */
+    .border = 0xFF777D60u,        /* #607D77 */
+    .success = 0xFF98DA8Du,       /* #8DDA98 */
+    .error = 0xFFABB4FFu,         /* #FFB4AB */
+    .error_surface = 0xFF28294Bu, /* #4B2928 */
+    .warning = 0xFF75CDF2u,       /* #F2CD75 */
+};
+#define UI_PALETTE dark_palette
+#else
 /* Original Light appearance, packed as 0xAABBGGRR (C2D_Color32 order).
  * Integer constants allow a read-only initializer in C. */
 static const LsUiPalette light_palette = {
@@ -53,20 +82,22 @@ static const LsUiPalette light_palette = {
     .warning = 0xFF00679Au,
 };
 
-/* Only Light is available; future palette selection can replace this binding. */
-#define COLOR_BACKGROUND (light_palette.background)
-#define COLOR_SURFACE (light_palette.surface)
-#define COLOR_SURFACE_HIGH (light_palette.surface_high)
-#define COLOR_PRIMARY (light_palette.primary)
-#define COLOR_PRIMARY_DARK (light_palette.primary_dark)
-#define COLOR_ON_PRIMARY (light_palette.on_primary)
-#define COLOR_TEXT (light_palette.text)
-#define COLOR_MUTED (light_palette.muted)
-#define COLOR_BORDER (light_palette.border)
-#define COLOR_SUCCESS (light_palette.success)
-#define COLOR_ERROR (light_palette.error)
-#define COLOR_ERROR_SURFACE (light_palette.error_surface)
-#define COLOR_WARNING (light_palette.warning)
+#define UI_PALETTE light_palette
+#endif
+
+#define COLOR_BACKGROUND (UI_PALETTE.background)
+#define COLOR_SURFACE (UI_PALETTE.surface)
+#define COLOR_SURFACE_HIGH (UI_PALETTE.surface_high)
+#define COLOR_PRIMARY (UI_PALETTE.primary)
+#define COLOR_PRIMARY_DARK (UI_PALETTE.primary_dark)
+#define COLOR_ON_PRIMARY (UI_PALETTE.on_primary)
+#define COLOR_TEXT (UI_PALETTE.text)
+#define COLOR_MUTED (UI_PALETTE.muted)
+#define COLOR_BORDER (UI_PALETTE.border)
+#define COLOR_SUCCESS (UI_PALETTE.success)
+#define COLOR_ERROR (UI_PALETTE.error)
+#define COLOR_ERROR_SURFACE (UI_PALETTE.error_surface)
+#define COLOR_WARNING (UI_PALETTE.warning)
 
 static const LsUiRect nav_receive = {0, 208, 106, 32};
 static const LsUiRect nav_send = {106, 208, 107, 32};
