@@ -3,6 +3,44 @@
 #include <stdio.h>
 #include <string.h>
 
+void ls_ui_theme_picker_open(LsUiThemePicker *picker, LsThemeId saved) {
+    if (picker == NULL) return;
+    picker->highlighted = (unsigned)saved < LS_THEME_COUNT ?
+                          saved : LS_THEME_LIGHT;
+    picker->open = true;
+}
+
+void ls_ui_theme_picker_cancel(LsUiThemePicker *picker) {
+    if (picker != NULL) picker->open = false;
+}
+
+bool ls_ui_theme_picker_select(LsUiThemePicker *picker, size_t index) {
+    if (picker == NULL || !picker->open || index >= LS_THEME_COUNT) return false;
+    picker->highlighted = (LsThemeId)index;
+    return true;
+}
+
+LsThemePickerResult ls_ui_theme_picker_input(LsUiThemePicker *picker,
+                                             int direction, bool confirm,
+                                             bool cancel, LsThemeId *choice) {
+    if (picker == NULL || !picker->open) return LS_THEME_PICKER_NONE;
+    if (cancel) {
+        ls_ui_theme_picker_cancel(picker);
+        return LS_THEME_PICKER_CANCEL;
+    }
+    if (direction < 0 && picker->highlighted > LS_THEME_LIGHT) {
+        --picker->highlighted;
+    } else if (direction > 0 && picker->highlighted + 1 < LS_THEME_COUNT) {
+        ++picker->highlighted;
+    }
+    if (confirm && choice != NULL) {
+        *choice = picker->highlighted;
+        /* Remain open until persistence succeeds, so failures can be retried. */
+        return LS_THEME_PICKER_CONFIRM;
+    }
+    return LS_THEME_PICKER_NONE;
+}
+
 bool ls_ui_rect_contains(LsUiRect rect, int x, int y) {
     return rect.width > 0 && rect.height > 0 && x >= rect.x && y >= rect.y &&
            x < rect.x + rect.width && y < rect.y + rect.height;

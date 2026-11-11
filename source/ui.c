@@ -35,16 +35,28 @@ typedef struct {
     u32 warning;
 } LsUiPalette;
 
-/* Development preview only: build with -DLS3DS_UI_DARK_PREVIEW=1.
- * Normal builds remain Light; there is no persisted appearance setting. */
-#ifndef LS3DS_UI_DARK_PREVIEW
-#define LS3DS_UI_DARK_PREVIEW 0
-#endif
-#if LS3DS_UI_DARK_PREVIEW != 0 && LS3DS_UI_DARK_PREVIEW != 1
-#error "LS3DS_UI_DARK_PREVIEW must be 0 or 1"
+/* Retired preview overrides must never override the saved runtime theme. */
+#if defined(LS3DS_UI_DARK_PREVIEW) || defined(LS3DS_UI_OLED_PREVIEW)
+#error "Compile-time theme previews are retired; select Theme in Settings"
 #endif
 
-#if LS3DS_UI_DARK_PREVIEW
+/* Black appearance for LCD hardware too: retain visible surfaces and borders.
+ * Packed 0xAABBGGRR, using the same accent roles as the Dark palette. */
+static const LsUiPalette oled_palette = {
+    .background = 0xFF000000u,    /* #000000 */
+    .surface = 0xFF181914u,       /* #141918 */
+    .surface_high = 0xFF303327u,  /* #273330 */
+    .primary = 0xFFCAD863u,       /* #63D8CA */
+    .primary_dark = 0xFFDAE68Du,  /* #8DE6DA */
+    .on_primary = 0xFF313700u,    /* #003731 */
+    .text = 0xFFEBEEE4u,          /* #E4EEEB */
+    .muted = 0xFFC1C6B1u,         /* #B1C6C1 */
+    .border = 0xFF777D60u,        /* #607D77 */
+    .success = 0xFF98DA8Du,       /* #8DDA98 */
+    .error = 0xFFABB4FFu,         /* #FFB4AB */
+    .error_surface = 0xFF222340u, /* #402322 */
+    .warning = 0xFF75CDF2u,       /* #F2CD75 */
+};
 /* Packed 0xAABBGGRR. The historical primary_dark role is used as accent
  * text, so it becomes a light teal on dark surfaces. */
 static const LsUiPalette dark_palette = {
@@ -62,8 +74,6 @@ static const LsUiPalette dark_palette = {
     .error_surface = 0xFF28294Bu, /* #4B2928 */
     .warning = 0xFF75CDF2u,       /* #F2CD75 */
 };
-#define UI_PALETTE dark_palette
-#else
 /* Original Light appearance, packed as 0xAABBGGRR (C2D_Color32 order).
  * Integer constants allow a read-only initializer in C. */
 static const LsUiPalette light_palette = {
@@ -82,8 +92,17 @@ static const LsUiPalette light_palette = {
     .warning = 0xFF00679Au,
 };
 
-#define UI_PALETTE light_palette
-#endif
+static const LsUiPalette *active_palette = &light_palette;
+
+static const LsUiPalette *palette_for_theme(LsThemeId theme) {
+    switch (theme) {
+        case LS_THEME_DARK: return &dark_palette;
+        case LS_THEME_OLED: return &oled_palette;
+        case LS_THEME_LIGHT: default: return &light_palette;
+    }
+}
+
+#define UI_PALETTE (*active_palette)
 
 #define COLOR_BACKGROUND (UI_PALETTE.background)
 #define COLOR_SURFACE (UI_PALETTE.surface)
@@ -128,6 +147,11 @@ static const LsUiRect recipient_send_button = {
 };
 static const LsUiRect settings_up_button = {288, 50, 24, 70};
 static const LsUiRect settings_down_button = {288, 126, 24, 70};
+static const LsUiRect theme_back_button = {8, 174, 82, 30};
+
+static LsUiRect theme_row_rect(size_t index) {
+    return (LsUiRect){8, 49 + (int)(41 * index), 304, 35};
+}
 
 static bool incoming_terminal(LsTransferState state) {
     return state == LS_TRANSFER_COMPLETED || state == LS_TRANSFER_REJECTED ||
@@ -354,6 +378,7 @@ static const char *settings_label(LsSettingsItem item) {
         case LS_SETTING_DEVICE_NAME: return "Device name";
         case LS_SETTING_QUICK_SAVE: return "Quick Save";
         case LS_SETTING_AUTO_FINISH: return "Auto Finish";
+        case LS_SETTING_THEME: return "Theme";
         case LS_SETTING_SAVE_FOLDER: return "Save folder (read-only)";
         case LS_SETTING_CONNECTION: return "Connection (read-only)";
         case LS_SETTING_PORT: return "Port (read-only)";
@@ -373,6 +398,7 @@ static const char *settings_value(const LsApp *app, LsSettingsItem item) {
             return app->settings.quick_save ? "On" : "Off";
         case LS_SETTING_AUTO_FINISH:
             return app->settings.auto_finish ? "On" : "Off";
+        case LS_SETTING_THEME: return ls_theme_name(app->settings.theme);
         case LS_SETTING_SAVE_FOLDER: return "Downloads";
         case LS_SETTING_CONNECTION: return "Receive: HTTP";
         case LS_SETTING_PORT: return "53317";
@@ -393,6 +419,8 @@ static const char *settings_description(LsSettingsItem item) {
             return "Automatically accept incoming files. Use only on a trusted local network.";
         case LS_SETTING_AUTO_FINISH:
             return "Return to Receive or Send shortly after a successful transfer.";
+        case LS_SETTING_THEME:
+            return "Choose Light, Dark or OLED Black. Press A or tap to open.";
         case LS_SETTING_SAVE_FOLDER:
             return "Read-only: sdmc:/3ds/LocalSend/Downloads/";
         case LS_SETTING_CONNECTION:
@@ -502,12 +530,22 @@ static void draw_top_idle(LsApp *app) {
         u32 status_color = strncmp(app->status_message, "Could not", 9) == 0 ||
                            strstr(app->status_message, "must be") != NULL ?
                                COLOR_ERROR : COLOR_MUTED;
-        draw_text(ui, settings_label(item), 40, 112, 0.58f, COLOR_TEXT,
-                  C2D_AlignLeft, 310);
-        draw_text(ui, settings_value(app, item), 40, 142, 0.46f,
-                  COLOR_PRIMARY_DARK, C2D_AlignLeft, 310);
-        draw_text(ui, settings_description(item), 40, 173, 0.40f,
-                  COLOR_MUTED, C2D_AlignLeft, 320);
+        if (ui->theme_picker.open) {
+            draw_text(ui, "Choose theme", 40, 112, 0.58f, COLOR_TEXT,
+                      C2D_AlignLeft, 310);
+            draw_text(ui, ls_theme_name(ui->theme_picker.highlighted),
+                      40, 142, 0.46f, COLOR_PRIMARY_DARK, C2D_AlignLeft, 310);
+            draw_textf(ui, 40, 173, 0.40f, COLOR_MUTED, C2D_AlignLeft, 320,
+                       "Saved: %s. A applies; B keeps the saved theme.",
+                       ls_theme_name(app->settings.theme));
+        } else {
+            draw_text(ui, settings_label(item), 40, 112, 0.58f, COLOR_TEXT,
+                      C2D_AlignLeft, 310);
+            draw_text(ui, settings_value(app, item), 40, 142, 0.46f,
+                      COLOR_PRIMARY_DARK, C2D_AlignLeft, 310);
+            draw_text(ui, settings_description(item), 40, 173, 0.40f,
+                      COLOR_MUTED, C2D_AlignLeft, 320);
+        }
         draw_text(ui, app->status_message, 200, 220, 0.34f, status_color,
                   C2D_AlignCenter, 360);
     } else if (selected != NULL) {
@@ -652,12 +690,40 @@ static void render_receive_home(LsApp *app) {
     draw_nav(&app->ui, LS_APP_RECEIVE);
 }
 
+static void render_theme_picker(LsApp *app) {
+    size_t index;
+    draw_bottom_header(&app->ui, "Choose theme", NULL, false);
+    draw_text(&app->ui, "Highlighted = cursor; Saved = active theme",
+              12, 31, 0.34f, COLOR_MUTED, C2D_AlignLeft, 296);
+    for (index = 0; index < LS_THEME_COUNT; ++index) {
+        LsUiRect rect = theme_row_rect(index);
+        draw_card((float)rect.x, (float)rect.y, (float)rect.width,
+                  (float)rect.height,
+                  index == (size_t)app->ui.theme_picker.highlighted);
+        draw_text(&app->ui, ls_theme_name((LsThemeId)index), 19,
+                  (float)rect.y + 8, 0.48f, COLOR_TEXT, C2D_AlignLeft, 190);
+        if (index == (size_t)app->settings.theme) {
+            draw_text(&app->ui, "Saved", 298, (float)rect.y + 10,
+                      0.38f, COLOR_PRIMARY_DARK, C2D_AlignRight, 0);
+        }
+    }
+    draw_button(&app->ui, theme_back_button, "Back", COLOR_SURFACE_HIGH,
+                COLOR_PRIMARY_DARK);
+    draw_text(&app->ui, "A Apply / B Back", 306, 184, 0.37f,
+              COLOR_MUTED, C2D_AlignRight, 0);
+    draw_nav(&app->ui, LS_APP_SETTINGS);
+}
+
 static void render_settings(LsApp *app) {
     size_t start = ls_ui_list_start(app->selected_setting, LS_SETTING_COUNT,
                                     SETTINGS_VISIBLE_ROWS);
     LsSettingsItem selected_item = app->selected_setting < LS_SETTING_COUNT ?
         (LsSettingsItem)app->selected_setting : LS_SETTING_DEVICE_NAME;
     size_t row;
+    if (app->ui.theme_picker.open) {
+        render_theme_picker(app);
+        return;
+    }
     draw_bottom_header(&app->ui, "Settings", NULL, false);
     draw_text(&app->ui, settings_section(selected_item), 12, 31, 0.38f,
               COLOR_PRIMARY_DARK, C2D_AlignLeft, 0.0f);
@@ -908,6 +974,8 @@ void ls_ui_shutdown(LsUi *ui) {
 
 void ls_ui_render(LsApp *app) {
     if (app == NULL || !app->ui.initialized) return;
+    /* Derived once per frame from the authoritative persisted settings state. */
+    active_palette = palette_for_theme(app->settings.theme);
     C2D_TextBufClear(app->ui.text_buffer);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     C2D_TargetClear(app->ui.top_target, COLOR_BACKGROUND);
@@ -952,6 +1020,25 @@ LsUiTouchResult ls_ui_touch_action(const LsApp *app, touchPosition touch) {
     if (app->state == LS_APP_NETWORK_ERROR) {
         if (ls_ui_rect_contains(standalone_primary_button, touch.px, touch.py)) {
             result.action = LS_UI_ACTION_REFRESH;
+        }
+        return result;
+    }
+    if (app->state == LS_APP_SETTINGS && app->ui.theme_picker.open) {
+        if (ls_ui_rect_contains(nav_receive, touch.px, touch.py)) {
+            result.action = LS_UI_ACTION_NAV_RECEIVE;
+        } else if (ls_ui_rect_contains(nav_send, touch.px, touch.py)) {
+            result.action = LS_UI_ACTION_NAV_SEND;
+        } else if (ls_ui_rect_contains(nav_settings, touch.px, touch.py) ||
+                   ls_ui_rect_contains(theme_back_button, touch.px, touch.py)) {
+            result.action = LS_UI_ACTION_BACK;
+        } else {
+            for (row = 0; row < LS_THEME_COUNT; ++row) {
+                if (ls_ui_rect_contains(theme_row_rect(row), touch.px, touch.py)) {
+                    result.action = LS_UI_ACTION_THEME_ITEM;
+                    result.index = row;
+                    break;
+                }
+            }
         }
         return result;
     }

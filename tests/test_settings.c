@@ -1,5 +1,6 @@
 #include "config.h"
 #include "settings.h"
+#include "ui_model.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -24,6 +25,110 @@ static void assert_recovered(const LsSettings *settings) {
     assert(!settings->auto_finish);
 }
 
+static void test_theme_settings(void) {
+    char directory_template[] = "/tmp/localsend3ds-themes.XXXXXX";
+    char *directory = mkdtemp(directory_template);
+    char path[256], backup[272], temporary[272], text[512];
+    LsSettings current, loaded, candidate;
+    LsUiThemePicker picker = {0};
+    LsThemeId choice = LS_THEME_LIGHT;
+    int theme;
+    static const char *const invalid[] = {"unknown", "", "DARK", "-1", "3"};
+    size_t i;
+    assert(directory != NULL);
+    assert(snprintf(path, sizeof(path), "%s/settings.conf", directory) > 0);
+    assert(snprintf(backup, sizeof(backup), "%s.bak", path) > 0);
+    assert(snprintf(temporary, sizeof(temporary), "%s.tmp", path) > 0);
+    assert(!ls_settings_load(&current, path));
+    assert(current.theme == LS_THEME_LIGHT);
+
+    /* An unchanged v1.0.0 file is valid and keeps all its preferences. */
+    write_text(path, valid_backup);
+    assert(ls_settings_load(&current, path));
+    assert_recovered(&current);
+    assert(current.theme == LS_THEME_LIGHT);
+    for (theme = LS_THEME_LIGHT; theme < LS_THEME_COUNT; ++theme) {
+        candidate = current;
+        candidate.theme = (LsThemeId)theme;
+        assert(ls_settings_save_and_apply(&current, &candidate, path));
+        assert(current.theme == (LsThemeId)theme);
+        /* Simulate restart into a fresh settings object. */
+        ls_settings_defaults(&loaded);
+        assert(ls_settings_load(&loaded, path));
+        assert(loaded.theme == (LsThemeId)theme);
+        assert_recovered(&loaded);
+        {
+            FILE *file = fopen(path, "rb");
+            size_t bytes;
+            assert(file != NULL);
+            bytes = fread(text, 1, sizeof(text) - 1, file);
+            assert(!ferror(file));
+            text[bytes] = '\0';
+            assert(fclose(file) == 0);
+            assert(strstr(text, "version=1\n") != NULL);
+            assert(strstr(text, ls_theme_identifier((LsThemeId)theme)) != NULL);
+        }
+    }
+    for (i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        assert(snprintf(text, sizeof(text), "%stheme=%s\n", valid_backup,
+                        invalid[i]) > 0);
+        write_text(path, text);
+        assert(ls_settings_load(&loaded, path));
+        assert(loaded.theme == LS_THEME_LIGHT);
+        assert_recovered(&loaded);
+    }
+
+    /* Duplicate recognized theme fields are structural corruption: use backup. */
+    assert(snprintf(text, sizeof(text), "%stheme=dark\n", valid_backup) > 0);
+    write_text(backup, text);
+    write_text(path, "version=1\ndevice_name=Wrong\nquick_save=0\n"
+                     "auto_finish=1\ntheme=light\ntheme=oled\n");
+    assert(ls_settings_load(&loaded, path));
+    assert(loaded.theme == LS_THEME_DARK);
+    assert_recovered(&loaded);
+    assert(access(backup, F_OK) != 0);
+    assert(ls_settings_load(&current, path));
+    assert(current.theme == LS_THEME_DARK);
+
+    /* Failed persistence leaves runtime, disk, and the open picker unchanged. */
+    assert(mkdir(temporary, 0700) == 0);
+    ls_ui_theme_picker_open(&picker, current.theme);
+    assert(ls_ui_theme_picker_select(&picker, LS_THEME_OLED));
+    assert(ls_ui_theme_picker_input(&picker, 0, true, false, &choice) ==
+           LS_THEME_PICKER_CONFIRM);
+    candidate = current;
+    candidate.theme = choice;
+    assert(!ls_settings_save_and_apply(&current, &candidate, path));
+    assert(current.theme == LS_THEME_DARK && picker.open);
+    assert_recovered(&current);
+    assert(ls_settings_load(&loaded, path));
+    assert(loaded.theme == LS_THEME_DARK);
+    assert_recovered(&loaded);
+    assert(rmdir(temporary) == 0);
+    assert(ls_settings_save_and_apply(&current, &candidate, path));
+    ls_ui_theme_picker_cancel(&picker);
+    assert(current.theme == LS_THEME_OLED && !picker.open);
+    assert(ls_settings_load(&loaded, path));
+    assert(loaded.theme == LS_THEME_OLED);
+    assert_recovered(&loaded);
+
+    candidate = current;
+    candidate.theme = LS_THEME_COUNT;
+    assert(!ls_settings_save_and_apply(&current, &candidate, path));
+    assert(current.theme == LS_THEME_OLED);
+    candidate.theme = (LsThemeId)-1;
+    assert(!ls_settings_save_and_apply(&current, &candidate, path));
+    assert(current.theme == LS_THEME_OLED);
+    /* Duplicate fields without a valid backup fall back to default settings. */
+    write_text(path, "version=1\ndevice_name=Wrong\nquick_save=1\n"
+                     "auto_finish=0\ntheme=dark\ntheme=dark\n");
+    assert(!ls_settings_load(&loaded, path));
+    assert(loaded.theme == LS_THEME_LIGHT);
+    assert(strcmp(loaded.alias, LS3DS_DEFAULT_ALIAS) == 0);
+    assert(unlink(path) == 0);
+    assert(rmdir(directory) == 0);
+}
+
 void run_settings_tests(void) {
     char directory_template[] = "/tmp/localsend3ds-settings.XXXXXX";
     char *directory = mkdtemp(directory_template);
@@ -39,6 +144,7 @@ void run_settings_tests(void) {
     LsSettings settings;
     LsSettings loaded;
 
+    test_theme_settings();
     assert(directory != NULL);
     assert(snprintf(path, sizeof(path), "%s/settings.conf", directory) > 0);
     assert(snprintf(backup_path, sizeof(backup_path), "%s.bak", path) > 0);

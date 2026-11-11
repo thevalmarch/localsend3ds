@@ -6,6 +6,7 @@
 
 #include <3ds.h>
 #include <citro2d.h>
+#include "ui_model.h"
 
 struct LsApp;
 
@@ -22,7 +23,8 @@ typedef enum {
     LS_UI_ACTION_NAV_SETTINGS,
     LS_UI_ACTION_LIST_ITEM,
     LS_UI_ACTION_SETTINGS_UP,
-    LS_UI_ACTION_SETTINGS_DOWN
+    LS_UI_ACTION_SETTINGS_DOWN,
+    LS_UI_ACTION_THEME_ITEM
 } LsUiAction;
 
 typedef struct {
@@ -38,6 +40,7 @@ typedef struct {
     bool initialized;
     bool debug_view;
     bool refresh_pressed;
+    LsUiThemePicker theme_picker;
 } LsUi;
 
 bool ls_ui_init(LsUi *ui);

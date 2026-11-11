@@ -29,6 +29,47 @@ static bool ends_with(const char *text, const char *suffix) {
            strcmp(text + text_length - suffix_length, suffix) == 0;
 }
 
+static void test_theme_picker(void) {
+    LsUiThemePicker picker = {0};
+    LsThemeId choice = LS_THEME_DARK;
+    assert(ls_ui_theme_picker_input(&picker, 1, true, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(!ls_ui_theme_picker_select(&picker, 0));
+    ls_ui_theme_picker_open(&picker, LS_THEME_LIGHT);
+    assert(picker.open && picker.highlighted == LS_THEME_LIGHT);
+    assert(ls_ui_theme_picker_input(&picker, -1, false, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(picker.highlighted == LS_THEME_LIGHT);
+    assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(picker.highlighted == LS_THEME_DARK);
+    assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(picker.highlighted == LS_THEME_OLED);
+    assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(picker.highlighted == LS_THEME_OLED);
+    assert(!ls_ui_theme_picker_select(&picker, LS_THEME_COUNT));
+    assert(!ls_ui_theme_picker_select(&picker, SIZE_MAX));
+    assert(picker.highlighted == LS_THEME_OLED);
+    /* B wins over simultaneous A and never returns a new choice. */
+    assert(ls_ui_theme_picker_input(&picker, 0, true, true, &choice) ==
+           LS_THEME_PICKER_CANCEL);
+    assert(!picker.open && choice == LS_THEME_DARK);
+    ls_ui_theme_picker_open(&picker, LS_THEME_DARK);
+    assert(picker.highlighted == LS_THEME_DARK);
+    assert(ls_ui_theme_picker_select(&picker, LS_THEME_LIGHT));
+    assert(ls_ui_theme_picker_input(&picker, 0, true, false, &choice) ==
+           LS_THEME_PICKER_CONFIRM);
+    assert(choice == LS_THEME_LIGHT && picker.open);
+    ls_ui_theme_picker_cancel(&picker);
+    assert(!picker.open);
+    ls_ui_theme_picker_open(&picker, LS_THEME_COUNT);
+    assert(picker.highlighted == LS_THEME_LIGHT);
+    assert(strcmp(ls_theme_name(LS_THEME_OLED), "OLED Black") == 0);
+    assert(strcmp(ls_theme_identifier(LS_THEME_OLED), "oled") == 0);
+}
+
 void run_ui_tests(void) {
     LsUiRect rect = {10, 20, 30, 40};
     char formatted[32];
@@ -36,6 +77,7 @@ void run_ui_tests(void) {
     char narrow_glyphs[128];
     char wide_glyphs[128];
 
+    test_theme_picker();
     assert(ls_ui_rect_contains(rect, 10, 20));
     assert(ls_ui_rect_contains(rect, 39, 59));
     assert(!ls_ui_rect_contains(rect, 40, 59));

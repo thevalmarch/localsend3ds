@@ -4,6 +4,25 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "settings.h"
+
+typedef struct {
+    bool open;
+    LsThemeId highlighted;
+} LsUiThemePicker;
+
+typedef enum {
+    LS_THEME_PICKER_NONE = 0,
+    LS_THEME_PICKER_CANCEL,
+    LS_THEME_PICKER_CONFIRM
+} LsThemePickerResult;
+
+void ls_ui_theme_picker_open(LsUiThemePicker *picker, LsThemeId saved);
+void ls_ui_theme_picker_cancel(LsUiThemePicker *picker);
+bool ls_ui_theme_picker_select(LsUiThemePicker *picker, size_t index);
+LsThemePickerResult ls_ui_theme_picker_input(LsUiThemePicker *picker,
+                                             int direction, bool confirm,
+                                             bool cancel, LsThemeId *choice);
 
 typedef struct {
     int x;

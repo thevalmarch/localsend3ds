@@ -9,6 +9,28 @@
 
 #define LS_SETTINGS_PATH_CAPACITY 512
 
+const char *ls_theme_name(LsThemeId theme) {
+    switch (theme) {
+        case LS_THEME_DARK: return "Dark";
+        case LS_THEME_OLED: return "OLED Black";
+        case LS_THEME_LIGHT: default: return "Light";
+    }
+}
+
+const char *ls_theme_identifier(LsThemeId theme) {
+    switch (theme) {
+        case LS_THEME_DARK: return "dark";
+        case LS_THEME_OLED: return "oled";
+        case LS_THEME_LIGHT: default: return "light";
+    }
+}
+
+static LsThemeId parse_theme(const char *value) {
+    if (strcmp(value, "dark") == 0) return LS_THEME_DARK;
+    if (strcmp(value, "oled") == 0) return LS_THEME_OLED;
+    return LS_THEME_LIGHT;
+}
+
 static bool sidecar_path(const char *path, const char *suffix, char *output,
                          size_t capacity) {
     int length;
@@ -106,6 +128,7 @@ void ls_settings_defaults(LsSettings *settings) {
                    LS3DS_DEFAULT_ALIAS);
     settings->quick_save = false;
     settings->auto_finish = true;
+    settings->theme = LS_THEME_LIGHT;
 }
 
 bool ls_settings_set_alias(LsSettings *settings, const char *alias) {
@@ -140,7 +163,8 @@ static SettingsLoadResult load_settings_file(const char *path,
         SETTINGS_FIELD_VERSION = 1u << 0,
         SETTINGS_FIELD_DEVICE_NAME = 1u << 1,
         SETTINGS_FIELD_QUICK_SAVE = 1u << 2,
-        SETTINGS_FIELD_AUTO_FINISH = 1u << 3
+        SETTINGS_FIELD_AUTO_FINISH = 1u << 3,
+        SETTINGS_FIELD_THEME = 1u << 4
     };
     const unsigned required_fields = SETTINGS_FIELD_VERSION |
                                      SETTINGS_FIELD_DEVICE_NAME |
@@ -187,6 +211,10 @@ static SettingsLoadResult load_settings_file(const char *path,
         } else if (strcmp(line, "auto_finish") == 0) {
             field = SETTINGS_FIELD_AUTO_FINISH;
             if (!parse_boolean(equals, &loaded.auto_finish)) valid = false;
+        } else if (strcmp(line, "theme") == 0) {
+            field = SETTINGS_FIELD_THEME;
+            /* Optional: unknown values retain all other valid settings. */
+            loaded.theme = parse_theme(equals);
         }
         if (field != 0 && (fields & field) != 0) valid = false;
         fields |= field;
@@ -194,7 +222,7 @@ static SettingsLoadResult load_settings_file(const char *path,
     }
     if (ferror(file)) valid = false;
     if (fclose(file) != 0) valid = false;
-    if (fields != required_fields) valid = false;
+    if ((fields & required_fields) != required_fields) valid = false;
     if (!valid) return SETTINGS_LOAD_INVALID;
     *settings = loaded;
     return SETTINGS_LOAD_VALID;
@@ -247,7 +275,8 @@ bool ls_settings_save(const LsSettings *settings, const char *path) {
     int error_number;
     bool destination_exists;
     if (settings == NULL || path == NULL || path[0] == '\0' ||
-        !valid_alias(settings->alias)) {
+        !valid_alias(settings->alias) ||
+        (unsigned)settings->theme >= LS_THEME_COUNT) {
         errno = EINVAL;
         return false;
     }
@@ -257,9 +286,10 @@ bool ls_settings_save(const LsSettings *settings, const char *path) {
     }
     file = fopen(temporary_path, "wb");
     if (file == NULL) return false;
-    if (fprintf(file, "version=1\ndevice_name=%s\nquick_save=%u\nauto_finish=%u\n",
+    if (fprintf(file, "version=1\ndevice_name=%s\nquick_save=%u\nauto_finish=%u\ntheme=%s\n",
                 settings->alias, settings->quick_save ? 1u : 0u,
-                settings->auto_finish ? 1u : 0u) < 0 || fflush(file) != 0) {
+                settings->auto_finish ? 1u : 0u,
+                ls_theme_identifier(settings->theme)) < 0 || fflush(file) != 0) {
         error_number = errno;
         (void)fclose(file);
         return save_failure(temporary_path, error_number);
@@ -286,5 +316,16 @@ bool ls_settings_save(const LsSettings *settings, const char *path) {
         return save_failure(temporary_path, error_number);
     }
     (void)unlink(backup_path);
+    return true;
+}
+
+bool ls_settings_save_and_apply(LsSettings *current, const LsSettings *updated,
+                                const char *path) {
+    if (current == NULL || updated == NULL) {
+        errno = EINVAL;
+        return false;
+    }
+    if (!ls_settings_save(updated, path)) return false;
+    *current = *updated;
     return true;
 }

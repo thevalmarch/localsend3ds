@@ -165,14 +165,14 @@ static void start_selected_outgoing(LsApp *app, uint64_t now_ms) {
 
 static bool persist_settings(LsApp *app, const LsSettings *updated) {
     if (!ls_filesystem_ensure_directory(LS3DS_SETTINGS_DIRECTORY) ||
-        !ls_settings_save(updated, LS3DS_SETTINGS_PATH)) {
+        !ls_settings_save_and_apply(&app->settings, updated,
+                                    LS3DS_SETTINGS_PATH)) {
         (void)snprintf(app->status_message, sizeof(app->status_message),
                        "Could not save settings");
         LS_LOGE("settings", "save failed; path=%s errno=%d",
                 LS3DS_SETTINGS_PATH, errno);
         return false;
     }
-    app->settings = *updated;
     return true;
 }
 
@@ -237,6 +237,10 @@ static void activate_setting(LsApp *app, uint64_t now_ms) {
             (void)snprintf(app->status_message, sizeof(app->status_message),
                            "SELECT closes developer view");
             break;
+        case LS_SETTING_THEME:
+            ls_ui_theme_picker_open(&app->ui.theme_picker, app->settings.theme);
+            app->status_message[0] = '\0';
+            break;
         case LS_SETTING_SAVE_FOLDER:
         case LS_SETTING_CONNECTION:
         case LS_SETTING_PORT:
@@ -281,9 +285,18 @@ static u32 apply_touch_action(LsApp *app, LsUiTouchResult touch,
         case LS_UI_ACTION_CANCEL:
         case LS_UI_ACTION_BACK: keys |= KEY_B; break;
         case LS_UI_ACTION_REFRESH: keys |= KEY_Y; break;
-        case LS_UI_ACTION_NAV_RECEIVE: app->state = LS_APP_RECEIVE; break;
-        case LS_UI_ACTION_NAV_SEND: app->state = LS_APP_DISCOVERY; break;
-        case LS_UI_ACTION_NAV_SETTINGS: app->state = LS_APP_SETTINGS; break;
+        case LS_UI_ACTION_NAV_RECEIVE:
+            ls_ui_theme_picker_cancel(&app->ui.theme_picker);
+            app->state = LS_APP_RECEIVE;
+            break;
+        case LS_UI_ACTION_NAV_SEND:
+            ls_ui_theme_picker_cancel(&app->ui.theme_picker);
+            app->state = LS_APP_DISCOVERY;
+            break;
+        case LS_UI_ACTION_NAV_SETTINGS:
+            ls_ui_theme_picker_cancel(&app->ui.theme_picker);
+            app->state = LS_APP_SETTINGS;
+            break;
         case LS_UI_ACTION_SETTINGS_UP: keys |= KEY_DUP; break;
         case LS_UI_ACTION_SETTINGS_DOWN: keys |= KEY_DDOWN; break;
         case LS_UI_ACTION_LIST_ITEM:
@@ -300,6 +313,7 @@ static u32 apply_touch_action(LsApp *app, LsUiTouchResult touch,
                 app->selected_setting = touch.index;
             }
             break;
+        case LS_UI_ACTION_THEME_ITEM:
         case LS_UI_ACTION_NONE: default: break;
     }
     return keys;
@@ -370,6 +384,32 @@ static void handle_input(LsApp *app, u32 keys_down, u32 keys_repeat,
             app->state = LS_APP_DISCOVERY;
             (void)snprintf(app->status_message, sizeof(app->status_message),
                            "Ready");
+        }
+        return;
+    }
+    if (app->state == LS_APP_SETTINGS && app->ui.theme_picker.open) {
+        LsThemeId choice;
+        LsThemePickerResult result;
+        bool tapped = touch.action == LS_UI_ACTION_THEME_ITEM &&
+                      ls_ui_theme_picker_select(&app->ui.theme_picker,
+                                                touch.index);
+        int direction = (keys & (KEY_DDOWN | KEY_CPAD_DOWN)) != 0 ? 1 :
+                        (keys & (KEY_DUP | KEY_CPAD_UP)) != 0 ? -1 : 0;
+        if (transfer != NULL && ls_transfer_is_busy(transfer)) return;
+        result = ls_ui_theme_picker_input(&app->ui.theme_picker, direction,
+                    (keys_down & KEY_A) != 0 || tapped,
+                    (keys & (KEY_B | KEY_L | KEY_R)) != 0, &choice);
+        if (result == LS_THEME_PICKER_CONFIRM) {
+            LsSettings updated = app->settings;
+            updated.theme = choice;
+            if (persist_settings(app, &updated)) {
+                ls_ui_theme_picker_cancel(&app->ui.theme_picker);
+                (void)snprintf(app->status_message, sizeof(app->status_message),
+                               "Theme set to %s", ls_theme_name(choice));
+            }
+        } else if (result == LS_THEME_PICKER_CANCEL) {
+            if ((keys & KEY_L) != 0) app->state = LS_APP_DISCOVERY;
+            if ((keys & KEY_R) != 0) app->state = LS_APP_RECEIVE;
         }
         return;
     }
