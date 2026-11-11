@@ -46,6 +46,53 @@ bool ls_ui_rect_contains(LsUiRect rect, int x, int y) {
            x < rect.x + rect.width && y < rect.y + rect.height;
 }
 
+LsUiRect ls_ui_theme_row_rect(size_t row) {
+    if (row >= LS_UI_THEME_VISIBLE_ROWS) return (LsUiRect){0, 0, 0, 0};
+    return (LsUiRect){8, 49 + (int)(41 * row), 276, 35};
+}
+
+LsUiRect ls_ui_theme_scroll_rect(int direction) {
+    if (direction < 0) return (LsUiRect){288, 50, 24, 54};
+    if (direction > 0) return (LsUiRect){288, 112, 24, 54};
+    return (LsUiRect){0, 0, 0, 0};
+}
+
+size_t ls_ui_theme_picker_start(const LsUiThemePicker *picker) {
+    if (picker == NULL || !picker->open) return 0;
+    return ls_ui_list_start((size_t)picker->highlighted, LS_THEME_COUNT,
+                            LS_UI_THEME_VISIBLE_ROWS);
+}
+
+bool ls_ui_theme_row_saved(const LsUiThemePicker *picker, size_t row,
+                           LsThemeId saved) {
+    if (picker == NULL || !picker->open || row >= LS_UI_THEME_VISIBLE_ROWS ||
+        (unsigned)saved >= LS_THEME_COUNT) return false;
+    return ls_ui_theme_picker_start(picker) + row == (size_t)saved;
+}
+
+LsThemeTouchAction ls_ui_theme_picker_touch(const LsUiThemePicker *picker,
+                                            int x, int y, size_t *index) {
+    size_t row;
+    if (picker == NULL || !picker->open) return LS_THEME_TOUCH_NONE;
+    for (row = 0; row < LS_UI_THEME_VISIBLE_ROWS; ++row) {
+        size_t item = ls_ui_theme_picker_start(picker) + row;
+        if (item < LS_THEME_COUNT &&
+            ls_ui_rect_contains(ls_ui_theme_row_rect(row), x, y)) {
+            if (index != NULL) *index = item;
+            return LS_THEME_TOUCH_ITEM;
+        }
+    }
+    if (picker->highlighted > LS_THEME_LIGHT &&
+        ls_ui_rect_contains(ls_ui_theme_scroll_rect(-1), x, y)) {
+        return LS_THEME_TOUCH_UP;
+    }
+    if (picker->highlighted + 1 < LS_THEME_COUNT &&
+        ls_ui_rect_contains(ls_ui_theme_scroll_rect(1), x, y)) {
+        return LS_THEME_TOUCH_DOWN;
+    }
+    return LS_THEME_TOUCH_NONE;
+}
+
 float ls_ui_centered_content_origin(float container_origin,
                                     float container_extent,
                                     float content_extent) {

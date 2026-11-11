@@ -48,10 +48,18 @@ static void test_theme_picker(void) {
     assert(picker.highlighted == LS_THEME_OLED);
     assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
            LS_THEME_PICKER_NONE);
-    assert(picker.highlighted == LS_THEME_OLED);
+    assert(picker.highlighted == LS_THEME_YARU_LIGHT);
+    assert(ls_ui_theme_picker_start(&picker) == 1);
+    assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(picker.highlighted == LS_THEME_YARU_DARK);
+    assert(ls_ui_theme_picker_start(&picker) == 2);
+    assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
+           LS_THEME_PICKER_NONE);
+    assert(picker.highlighted == LS_THEME_YARU_DARK);
     assert(!ls_ui_theme_picker_select(&picker, LS_THEME_COUNT));
     assert(!ls_ui_theme_picker_select(&picker, SIZE_MAX));
-    assert(picker.highlighted == LS_THEME_OLED);
+    assert(picker.highlighted == LS_THEME_YARU_DARK);
     /* B wins over simultaneous A and never returns a new choice. */
     assert(ls_ui_theme_picker_input(&picker, 0, true, true, &choice) ==
            LS_THEME_PICKER_CANCEL);
@@ -70,6 +78,85 @@ static void test_theme_picker(void) {
     assert(strcmp(ls_theme_identifier(LS_THEME_OLED), "oled") == 0);
 }
 
+static void test_theme_picker_scrolling(void) {
+    LsUiThemePicker picker = {0};
+    LsThemeId choice = LS_THEME_LIGHT;
+    size_t index = SIZE_MAX;
+    size_t highlighted, row;
+    static const size_t starts[] = {0, 0, 0, 1, 2};
+    assert(ls_ui_theme_scroll_rect(-1).y +
+           ls_ui_theme_scroll_rect(-1).height <= 174);
+    assert(ls_ui_theme_scroll_rect(1).y +
+           ls_ui_theme_scroll_rect(1).height <= 174);
+    ls_ui_theme_picker_open(&picker, LS_THEME_LIGHT);
+    /* Rendering, hit testing and Saved markers use the same three-row window. */
+    for (highlighted = 0; highlighted < LS_THEME_COUNT; ++highlighted) {
+        assert(ls_ui_theme_picker_select(&picker, highlighted));
+        assert(ls_ui_theme_picker_start(&picker) == starts[highlighted]);
+        for (row = 0; row < LS_UI_THEME_VISIBLE_ROWS; ++row) {
+            LsUiRect rect = ls_ui_theme_row_rect(row);
+            assert(rect.y + rect.height <= 174);
+            assert(rect.x + rect.width <= 288);
+            assert(ls_ui_theme_picker_touch(&picker, rect.x, rect.y, &index) ==
+                   LS_THEME_TOUCH_ITEM);
+            assert(index == starts[highlighted] + row);
+            assert(ls_ui_theme_picker_touch(&picker, rect.x + rect.width - 1,
+                                            rect.y + rect.height - 1,
+                                            &index) == LS_THEME_TOUCH_ITEM);
+            assert(index == starts[highlighted] + row);
+            assert(ls_ui_theme_row_saved(&picker, row, LS_THEME_LIGHT) ==
+                   (index == LS_THEME_LIGHT));
+            assert(ls_ui_theme_row_saved(&picker, row, LS_THEME_YARU_DARK) ==
+                   (index == LS_THEME_YARU_DARK));
+        }
+        assert(ls_ui_theme_picker_touch(&picker, 300, 80, &index) ==
+               (highlighted == 0 ? LS_THEME_TOUCH_NONE : LS_THEME_TOUCH_UP));
+        assert(ls_ui_theme_picker_touch(&picker, 300, 160, &index) ==
+               (highlighted + 1 == LS_THEME_COUNT ? LS_THEME_TOUCH_NONE :
+                                                            LS_THEME_TOUCH_DOWN));
+        assert(ls_ui_theme_picker_touch(&picker, 10, 175, &index) ==
+               LS_THEME_TOUCH_NONE); /* Back belongs to the enclosing screen. */
+        assert(ls_ui_theme_picker_touch(&picker, 10, 210, &index) ==
+               LS_THEME_TOUCH_NONE); /* Bottom navigation is outside the list. */
+        assert(ls_ui_theme_picker_touch(&picker, 285, 60, &index) ==
+               LS_THEME_TOUCH_NONE);
+    }
+    /* Touch-only navigation reaches and confirms the fifth theme. */
+    ls_ui_theme_picker_open(&picker, LS_THEME_LIGHT);
+    for (highlighted = 1; highlighted < LS_THEME_COUNT; ++highlighted) {
+        assert(ls_ui_theme_picker_touch(&picker, 300, 160, &index) ==
+               LS_THEME_TOUCH_DOWN);
+        assert(ls_ui_theme_picker_input(&picker, 1, false, false, &choice) ==
+               LS_THEME_PICKER_NONE);
+        assert(picker.highlighted == (LsThemeId)highlighted);
+    }
+    assert(ls_ui_theme_picker_touch(&picker, 20, 140, &index) ==
+           LS_THEME_TOUCH_ITEM);
+    assert(index == LS_THEME_YARU_DARK);
+    assert(ls_ui_theme_picker_select(&picker, index));
+    assert(ls_ui_theme_picker_input(&picker, 0, true, false, &choice) ==
+           LS_THEME_PICKER_CONFIRM);
+    assert(choice == LS_THEME_YARU_DARK);
+    /* The Saved marker reappears when navigating back to its visible window. */
+    assert(!ls_ui_theme_row_saved(&picker, 0, LS_THEME_LIGHT));
+    while (picker.highlighted > LS_THEME_LIGHT) {
+        assert(ls_ui_theme_picker_touch(&picker, 300, 80, &index) ==
+               LS_THEME_TOUCH_UP);
+        assert(ls_ui_theme_picker_input(&picker, -1, false, false, &choice) ==
+               LS_THEME_PICKER_NONE);
+    }
+    assert(ls_ui_theme_row_saved(&picker, 0, LS_THEME_LIGHT));
+    assert(!ls_ui_theme_row_saved(&picker, 3, LS_THEME_LIGHT));
+    assert(!ls_ui_theme_row_saved(&picker, 0, LS_THEME_COUNT));
+    assert(ls_ui_theme_picker_input(&picker, 0, false, true, &choice) ==
+           LS_THEME_PICKER_CANCEL);
+    assert(!ls_ui_theme_row_saved(&picker, 0, LS_THEME_LIGHT));
+    assert(ls_ui_theme_picker_touch(&picker, 20, 60, &index) ==
+           LS_THEME_TOUCH_NONE);
+    assert(ls_ui_theme_row_rect(3).width == 0);
+    assert(ls_ui_theme_scroll_rect(0).width == 0);
+}
+
 void run_ui_tests(void) {
     LsUiRect rect = {10, 20, 30, 40};
     char formatted[32];
@@ -78,6 +165,7 @@ void run_ui_tests(void) {
     char wide_glyphs[128];
 
     test_theme_picker();
+    test_theme_picker_scrolling();
     assert(ls_ui_rect_contains(rect, 10, 20));
     assert(ls_ui_rect_contains(rect, 39, 59));
     assert(!ls_ui_rect_contains(rect, 40, 59));

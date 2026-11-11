@@ -13,6 +13,8 @@ const char *ls_theme_name(LsThemeId theme) {
     switch (theme) {
         case LS_THEME_DARK: return "Dark";
         case LS_THEME_OLED: return "OLED Black";
+        case LS_THEME_YARU_LIGHT: return "Yaru Light";
+        case LS_THEME_YARU_DARK: return "Yaru Dark";
         case LS_THEME_LIGHT: default: return "Light";
     }
 }
@@ -21,6 +23,8 @@ const char *ls_theme_identifier(LsThemeId theme) {
     switch (theme) {
         case LS_THEME_DARK: return "dark";
         case LS_THEME_OLED: return "oled";
+        case LS_THEME_YARU_LIGHT: return "yaru_light";
+        case LS_THEME_YARU_DARK: return "yaru_dark";
         case LS_THEME_LIGHT: default: return "light";
     }
 }
@@ -28,6 +32,8 @@ const char *ls_theme_identifier(LsThemeId theme) {
 static LsThemeId parse_theme(const char *value) {
     if (strcmp(value, "dark") == 0) return LS_THEME_DARK;
     if (strcmp(value, "oled") == 0) return LS_THEME_OLED;
+    if (strcmp(value, "yaru_light") == 0) return LS_THEME_YARU_LIGHT;
+    if (strcmp(value, "yaru_dark") == 0) return LS_THEME_YARU_DARK;
     return LS_THEME_LIGHT;
 }
 

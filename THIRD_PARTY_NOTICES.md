@@ -66,6 +66,23 @@ The normal build obtains these components through the official devkitPro
 package ecosystem (`3ds-dev` plus `3ds-mbedtls`). Their source trees are not
 copied into this repository.
 
+## Yaru-inspired color palettes
+
+The optional Yaru Light and Yaru Dark appearances are independently authored
+LocalSend3DS palettes informed by color values and color relationships in
+[yaru 10.2.0](https://pub.dev/packages/yaru/versions/10.2.0), the version used by
+[the inspected LocalSend upstream revision](https://github.com/localsend/localsend/blob/2e7ef1972b0b4e210608ec77ef5fad334f798f7e/app/pubspec.yaml).
+References are Yaru's [color constants](https://github.com/ubuntu/yaru.dart/blob/v10.2.0/lib/src/themes/colors.dart)
+and [theme construction](https://github.com/ubuntu/yaru.dart/blob/v10.2.0/lib/src/themes/common_themes.dart).
+Several colors are adapted for contrast and the shared Nintendo 3DS UI roles;
+these appearances do not reproduce Flutter widget styling exactly.
+
+Yaru's theme/widget implementation is third-party software under
+[MPL-2.0](https://github.com/ubuntu/yaru.dart/blob/v10.2.0/LICENSE).
+LocalSend3DS does not incorporate that implementation, link the Yaru package,
+or distribute its icons, fonts, scripts or other assets. Yaru and Ubuntu names
+are used descriptively and do not imply affiliation or endorsement.
+
 ## Native CIA packaging tools
 
 - [3ds-bannertool](https://github.com/carstene1ns/3ds-bannertool/tree/734d33be79fd3f8c29c6296158f06ac7c5ca9dcb)

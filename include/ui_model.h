@@ -31,6 +31,23 @@ typedef struct {
     int height;
 } LsUiRect;
 
+#define LS_UI_THEME_VISIBLE_ROWS 3
+
+typedef enum {
+    LS_THEME_TOUCH_NONE = 0,
+    LS_THEME_TOUCH_ITEM,
+    LS_THEME_TOUCH_UP,
+    LS_THEME_TOUCH_DOWN
+} LsThemeTouchAction;
+
+LsUiRect ls_ui_theme_row_rect(size_t row);
+LsUiRect ls_ui_theme_scroll_rect(int direction);
+size_t ls_ui_theme_picker_start(const LsUiThemePicker *picker);
+bool ls_ui_theme_row_saved(const LsUiThemePicker *picker, size_t row,
+                           LsThemeId saved);
+LsThemeTouchAction ls_ui_theme_picker_touch(const LsUiThemePicker *picker,
+                                            int x, int y, size_t *index);
+
 typedef float (*LsUiMeasureTextFn)(const char *text, void *context);
 
 bool ls_ui_rect_contains(LsUiRect rect, int x, int y);

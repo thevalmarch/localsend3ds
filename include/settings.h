@@ -9,6 +9,8 @@ typedef enum {
     LS_THEME_LIGHT = 0,
     LS_THEME_DARK,
     LS_THEME_OLED,
+    LS_THEME_YARU_LIGHT,
+    LS_THEME_YARU_DARK,
     LS_THEME_COUNT
 } LsThemeId;
 

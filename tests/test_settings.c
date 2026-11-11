@@ -34,6 +34,9 @@ static void test_theme_settings(void) {
     LsThemeId choice = LS_THEME_LIGHT;
     int theme;
     static const char *const invalid[] = {"unknown", "", "DARK", "-1", "3"};
+    static const char *const identifiers[] = {
+        "light", "dark", "oled", "yaru_light", "yaru_dark"
+    };
     size_t i;
     assert(directory != NULL);
     assert(snprintf(path, sizeof(path), "%s/settings.conf", directory) > 0);
@@ -41,6 +44,7 @@ static void test_theme_settings(void) {
     assert(snprintf(temporary, sizeof(temporary), "%s.tmp", path) > 0);
     assert(!ls_settings_load(&current, path));
     assert(current.theme == LS_THEME_LIGHT);
+    assert(sizeof(identifiers) / sizeof(identifiers[0]) == LS_THEME_COUNT);
 
     /* An unchanged v1.0.0 file is valid and keeps all its preferences. */
     write_text(path, valid_backup);
@@ -50,6 +54,8 @@ static void test_theme_settings(void) {
     for (theme = LS_THEME_LIGHT; theme < LS_THEME_COUNT; ++theme) {
         candidate = current;
         candidate.theme = (LsThemeId)theme;
+        assert(strcmp(ls_theme_identifier(candidate.theme),
+                      identifiers[theme]) == 0);
         assert(ls_settings_save_and_apply(&current, &candidate, path));
         assert(current.theme == (LsThemeId)theme);
         /* Simulate restart into a fresh settings object. */
@@ -66,7 +72,12 @@ static void test_theme_settings(void) {
             text[bytes] = '\0';
             assert(fclose(file) == 0);
             assert(strstr(text, "version=1\n") != NULL);
-            assert(strstr(text, ls_theme_identifier((LsThemeId)theme)) != NULL);
+            {
+                char theme_line[48];
+                assert(snprintf(theme_line, sizeof(theme_line), "theme=%s\n",
+                                identifiers[theme]) > 0);
+                assert(strstr(text, theme_line) != NULL);
+            }
         }
     }
     for (i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
@@ -111,6 +122,17 @@ static void test_theme_settings(void) {
     assert(ls_settings_load(&loaded, path));
     assert(loaded.theme == LS_THEME_OLED);
     assert_recovered(&loaded);
+
+    /* New identifiers obey the same failed-save contract as older themes. */
+    assert(mkdir(temporary, 0700) == 0);
+    candidate = current;
+    candidate.theme = LS_THEME_YARU_DARK;
+    assert(!ls_settings_save_and_apply(&current, &candidate, path));
+    assert(current.theme == LS_THEME_OLED);
+    assert(ls_settings_load(&loaded, path));
+    assert(loaded.theme == LS_THEME_OLED);
+    assert_recovered(&loaded);
+    assert(rmdir(temporary) == 0);
 
     candidate = current;
     candidate.theme = LS_THEME_COUNT;

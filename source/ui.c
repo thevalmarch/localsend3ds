@@ -92,12 +92,49 @@ static const LsUiPalette light_palette = {
     .warning = 0xFF00679Au,
 };
 
+/* Independently authored 3DS palettes informed by yaru 10.2.0 color values.
+ * Contrast adaptations and shared roles differ from Flutter's Yaru widgets.
+ * See THIRD_PARTY_NOTICES.md for provenance; no Yaru code/assets are bundled. */
+static const LsUiPalette yaru_light_palette = {
+    .background = 0xFFFFFFFFu,    /* #FFFFFF */
+    .surface = 0xFFF2F2F2u,       /* #F2F2F2 */
+    .surface_high = 0xFFE3E8F6u,  /* #F6E8E3 */
+    .primary = 0xFF1341C3u,       /* #C34113 */
+    .primary_dark = 0xFF1036A5u,  /* #A53610 */
+    .on_primary = 0xFFFFFFFFu,    /* #FFFFFF */
+    .text = 0xFF363636u,          /* #363636 */
+    .muted = 0xFF4D4D4Du,         /* #4D4D4D */
+    .border = 0xFF808080u,        /* #808080 */
+    .success = 0xFF1B750Bu,       /* #0B751B: darker Yaru green for small text */
+    .error = 0xFF4A2AB5u,         /* #B52A4A */
+    .error_surface = 0xFFEBE5F8u, /* #F8E5EB */
+    .warning = 0xFF00518Au,       /* #8A5100 */
+};
+
+static const LsUiPalette yaru_dark_palette = {
+    .background = 0xFF202020u,    /* #202020 */
+    .surface = 0xFF2B2B2Bu,       /* #2B2B2B */
+    .surface_high = 0xFF2A3040u,  /* #40302A */
+    .primary = 0xFF2054E9u,       /* #E95420 */
+    .primary_dark = 0xFF709AFFu,  /* #FF9A70 */
+    .on_primary = 0xFF000000u,    /* #000000 */
+    .text = 0xFFFAFAFAu,          /* #FAFAFA */
+    .muted = 0xFFDEDEE4u,         /* #E4DEDE */
+    .border = 0xFF808080u,        /* #808080 */
+    .success = 0xFF98DA8Du,       /* #8DDA98 */
+    .error = 0xFF947CF1u,         /* #F17C94: lighter Yaru red for small text */
+    .error_surface = 0xFF2C2345u, /* #45232C */
+    .warning = 0xFF119BF9u,       /* #F99B11 */
+};
+
 static const LsUiPalette *active_palette = &light_palette;
 
 static const LsUiPalette *palette_for_theme(LsThemeId theme) {
     switch (theme) {
         case LS_THEME_DARK: return &dark_palette;
         case LS_THEME_OLED: return &oled_palette;
+        case LS_THEME_YARU_LIGHT: return &yaru_light_palette;
+        case LS_THEME_YARU_DARK: return &yaru_dark_palette;
         case LS_THEME_LIGHT: default: return &light_palette;
     }
 }
@@ -148,10 +185,6 @@ static const LsUiRect recipient_send_button = {
 static const LsUiRect settings_up_button = {288, 50, 24, 70};
 static const LsUiRect settings_down_button = {288, 126, 24, 70};
 static const LsUiRect theme_back_button = {8, 174, 82, 30};
-
-static LsUiRect theme_row_rect(size_t index) {
-    return (LsUiRect){8, 49 + (int)(41 * index), 304, 35};
-}
 
 static bool incoming_terminal(LsTransferState state) {
     return state == LS_TRANSFER_COMPLETED || state == LS_TRANSFER_REJECTED ||
@@ -420,7 +453,7 @@ static const char *settings_description(LsSettingsItem item) {
         case LS_SETTING_AUTO_FINISH:
             return "Return to Receive or Send shortly after a successful transfer.";
         case LS_SETTING_THEME:
-            return "Choose Light, Dark or OLED Black. Press A or tap to open.";
+            return "Choose Light, Dark, OLED Black or Yaru. Press A or tap to open.";
         case LS_SETTING_SAVE_FOLDER:
             return "Read-only: sdmc:/3ds/LocalSend/Downloads/";
         case LS_SETTING_CONNECTION:
@@ -691,22 +724,39 @@ static void render_receive_home(LsApp *app) {
 }
 
 static void render_theme_picker(LsApp *app) {
-    size_t index;
+    size_t start = ls_ui_theme_picker_start(&app->ui.theme_picker);
+    size_t row;
+    LsUiRect up = ls_ui_theme_scroll_rect(-1);
+    LsUiRect down = ls_ui_theme_scroll_rect(1);
+    u32 up_color = app->ui.theme_picker.highlighted > LS_THEME_LIGHT ?
+                   COLOR_PRIMARY : COLOR_BORDER;
+    u32 down_color = app->ui.theme_picker.highlighted + 1 < LS_THEME_COUNT ?
+                     COLOR_PRIMARY : COLOR_BORDER;
     draw_bottom_header(&app->ui, "Choose theme", NULL, false);
     draw_text(&app->ui, "Highlighted = cursor; Saved = active theme",
               12, 31, 0.34f, COLOR_MUTED, C2D_AlignLeft, 296);
-    for (index = 0; index < LS_THEME_COUNT; ++index) {
-        LsUiRect rect = theme_row_rect(index);
+    for (row = 0; row < LS_UI_THEME_VISIBLE_ROWS && start + row < LS_THEME_COUNT;
+         ++row) {
+        size_t index = start + row;
+        LsUiRect rect = ls_ui_theme_row_rect(row);
         draw_card((float)rect.x, (float)rect.y, (float)rect.width,
                   (float)rect.height,
                   index == (size_t)app->ui.theme_picker.highlighted);
         draw_text(&app->ui, ls_theme_name((LsThemeId)index), 19,
                   (float)rect.y + 8, 0.48f, COLOR_TEXT, C2D_AlignLeft, 190);
-        if (index == (size_t)app->settings.theme) {
-            draw_text(&app->ui, "Saved", 298, (float)rect.y + 10,
+        if (ls_ui_theme_row_saved(&app->ui.theme_picker, row,
+                                  app->settings.theme)) {
+            draw_text(&app->ui, "Saved", 270, (float)rect.y + 10,
                       0.38f, COLOR_PRIMARY_DARK, C2D_AlignRight, 0);
         }
     }
+    draw_card((float)up.x, (float)up.y, (float)up.width, (float)up.height, false);
+    draw_card((float)down.x, (float)down.y, (float)down.width,
+              (float)down.height, false);
+    C2D_DrawTriangle(300, 73, up_color, 294, 81, up_color,
+                     306, 81, up_color, 0.4f);
+    C2D_DrawTriangle(294, 135, down_color, 306, 135, down_color,
+                     300, 143, down_color, 0.4f);
     draw_button(&app->ui, theme_back_button, "Back", COLOR_SURFACE_HIGH,
                 COLOR_PRIMARY_DARK);
     draw_text(&app->ui, "A Apply / B Back", 306, 184, 0.37f,
@@ -1032,12 +1082,18 @@ LsUiTouchResult ls_ui_touch_action(const LsApp *app, touchPosition touch) {
                    ls_ui_rect_contains(theme_back_button, touch.px, touch.py)) {
             result.action = LS_UI_ACTION_BACK;
         } else {
-            for (row = 0; row < LS_THEME_COUNT; ++row) {
-                if (ls_ui_rect_contains(theme_row_rect(row), touch.px, touch.py)) {
+            switch (ls_ui_theme_picker_touch(&app->ui.theme_picker,
+                                              touch.px, touch.py, &result.index)) {
+                case LS_THEME_TOUCH_ITEM:
                     result.action = LS_UI_ACTION_THEME_ITEM;
-                    result.index = row;
                     break;
-                }
+                case LS_THEME_TOUCH_UP:
+                    result.action = LS_UI_ACTION_SETTINGS_UP;
+                    break;
+                case LS_THEME_TOUCH_DOWN:
+                    result.action = LS_UI_ACTION_SETTINGS_DOWN;
+                    break;
+                case LS_THEME_TOUCH_NONE: default: break;
             }
         }
         return result;
