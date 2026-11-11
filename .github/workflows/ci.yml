@@ -6,11 +6,21 @@ on:
 
 jobs:
   host-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install host TLS test dependency
-        run: sudo apt-get update && sudo apt-get install -y libmbedtls-dev
+        timeout-minutes: 10
+        run: |
+          sudo apt-get -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 \
+            -o Acquire::https::Timeout=20 \
+            update --error-on=any
+          sudo apt-get -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 \
+            -o Acquire::https::Timeout=20 \
+            install -y libmbedtls-dev
+          dpkg-query -W libmbedtls-dev
       - name: Run portable tests
         run: make -f Makefile.host test
 
