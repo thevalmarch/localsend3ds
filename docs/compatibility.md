@@ -4,8 +4,9 @@ No row below is marked working until tested with an official client and real
 Nintendo 3DS-family hardware. Host parser/socket tests are not substitutes.
 
 The matrix retains the established v1.0.0 interoperability evidence. The
-unreleased v1.1.0 theme tests below add development-build coverage without
-claiming new peer platforms or final release-package validation.
+unreleased v1.1.0 records below distinguish development-build coverage from
+RC1 package testing, without claiming new peer platforms or transport-specific
+results for RC1.
 
 | Direction | Discovery | One file | Transport verified | Independent integrity check | Cancel | Multi-file | PIN |
 |---|---|---|---|---|---|---|---|
@@ -48,11 +49,17 @@ additional hardware models or broad failure-path coverage.
 | v1.1.0 validation scope | Status |
 |---|---|
 | Five-theme development `.3dsx`, New Nintendo 2DS XL | Hardware-tested |
-| Final release-candidate `.3dsx` | Pending |
-| Final native CIA installation and HOME Menu operation | Pending; candidate not yet built or installed |
+| Unpublished v1.1.0 RC1 `.3dsx` | Homebrew Launcher launch, displayed v1.1.0, all five themes, a file transfer with Mac and START exit passed |
+| Unpublished v1.1.0 RC1 native CIA | Upgrade over v1.0.0, HOME Menu launch, displayed v1.1.0, existing settings preservation, five themes, restart theme persistence, incoming/outgoing transfers, icon/banner/sound and START exit passed |
+
+RC1 results were reported on New Nintendo 2DS XL. They do not establish fresh
+CIA installation, a standard-path RC1 `.3dsx` launch, sleep/lid behavior,
+additional hardware models or independent RC1 transfer checksums. RC1 transfer
+completion does not add protocol-specific TLS evidence beyond the historical
+records.
 
 The v1.0.0 native CIA results below remain historical evidence for that release.
-They are not v1.1.0 CIA verification. See the
+They are not substituted for the RC1 checks above. See the
 [current test record](testing.md#unreleased-v110-theme-validation).
 
 ## Verified discovery milestone — 2026-08-24

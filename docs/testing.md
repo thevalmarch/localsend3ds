@@ -102,8 +102,8 @@ remain recommended release-regression coverage unless separately recorded as
 verified below. The completed outgoing HTTPS transfers have not received an
 independent destination size or SHA-256 comparison. For the historical v1.0.0
 final `.3dsx`, launch was verified but transfer coverage was not separately
-attributed to that artifact. Later development-build transfer coverage is
-recorded separately below.
+attributed to that artifact. Later development-build and unpublished RC1
+coverage are recorded separately below.
 
 ## Unreleased v1.1.0 theme validation
 
@@ -125,23 +125,57 @@ The user verified development `.3dsx` builds on a real New Nintendo 2DS XL:
 
 One runtime-theme development build was launched through Homebrew Launcher
 from the LocalSend Downloads directory. This is valid development coverage;
-the documented installation path should still be exercised for the final RC.
+the launch path of the subsequently tested RC1 was not reported, so its
+standard-path installation remains unverified.
 The results do not add an independent checksum comparison or establish a new
 peer-specific transport, cancellation matrix, large-file, sleep or low-storage
 test result.
 
-| Validation stage | Status |
-|---|---|
-| Five-theme development `.3dsx` hardware testing | Completed on New Nintendo 2DS XL |
-| Final v1.1.0 release-candidate `.3dsx` testing | Not yet completed |
-| Final v1.1.0 CIA installation and HOME Menu testing | Not yet completed; CIA candidate not yet built or installed |
+### RC1 package verification (unpublished)
 
-Before release, record the exact candidate hashes locally and repeat startup,
-five-theme selection/cancellation/scrolling, restart persistence, preservation
-of legacy settings, basic send/receive and clean exit using the final artifacts.
-For CIA, also verify the installed package version, HOME Menu icon/banner/chime,
-and same-title update from v1.0.0 after backing up `sdmc:/3ds/LocalSend/`.
-These are pending checks, not completed results.
+RC1 was built from committed source
+`09d8d8bc5980fa7ae90d25831f468666226bc466`. Later documentation or tool-provenance
+commits do not retroactively change that build source revision. The exact RC1
+files tested are recorded here, not presented as published release artifacts:
+
+| RC1 artifact | Bytes | SHA-256 |
+|---|---:|---|
+| `LocalSend3DS-v1.1.0-rc1.3dsx` | 673392 | `0c79ec55118bf87ea19a2b6c83d2d6e3d51f25538134d2297a6a088c07eeac05` |
+| `LocalSend3DS-v1.1.0-rc1.cia` | 577984 | `db05f76cb0655b4330b3d647b7a4ad2bd6f295a52a480283c2b7b34399609a87` |
+
+The user reported these RC1 results on a real New Nintendo 2DS XL:
+
+| Format | Completed hardware checks |
+|---|---|
+| Native CIA | Installed as an upgrade over v1.0.0; launched from HOME Menu; Settings displayed v1.1.0; existing settings preserved; all five themes worked; incoming and outgoing transfers worked |
+| Native CIA, additional observations | HOME Menu icon, banner and startup sound passed; selected theme persisted after restarting; START exited cleanly |
+| `.3dsx` | Launched through Homebrew Launcher; Settings displayed v1.1.0; all five themes appeared and could be selected; a file transfer with Mac worked; START exited cleanly |
+
+These checks do not establish fresh CIA installation, Old 3DS compatibility,
+RC1 sleep/lid behavior, standard-path RC1 `.3dsx` launch, independent RC1
+transfer checksums or RC1-specific TLS-log validation. The direction and
+transport of the RC1 `.3dsx` transfer with Mac were not separately reported.
+The more detailed picker, low-brightness and transfer-screen checks above
+remain development-build evidence; they are not all claimed as repeated on RC1.
+
+RC1 automated validation passed the full host suite without sanitizers, ASan,
+UBSan and combined ASan/UBSan, all five palette snapshots and the existing Yaru
+contrast checks. Clang analysis of 16 portable modules reported no findings.
+The devkitARM build passed the existing warning and 4 KiB stack-usage gates;
+`3dsxdump`, CIA structural/hash inspection and embedded CWAV validation passed.
+ASan leak detection was disabled (`detect_leaks=0`); leak freedom is not claimed.
+Host tests used Mbed TLS 2.28.10; the 3DS artifacts used devkitPro's 2.28.8-1.
+
+The cross-build used the existing official image
+`devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5`
+with devkitARM r68/GCC 16.1.0, libctru 2.7.0, Citro2D 1.7.0 and Citro3D 1.7.1.
+The CIA used the [locally repaired makerom](../packaging/cia/patches/README.md),
+not unmodified upstream. Its TMD/ticket version was independently checked as
+1.1.0 / 1040, greater than v1.0.0 / 1024. Identity, access controls, priority,
+remaster revision, icon, banner and audio remained unchanged from v1.0.0.
+
+v1.1.0 remains unpublished. Broader cancellation, interruption, sleep/lid,
+low-storage and large-file coverage remain separate test-matrix items.
 
 ## Final v1.0.0 release-candidate hardware smoke — verified 2026-08-27
 
@@ -356,8 +390,10 @@ supported build. The CIA is native and has no external `.3dsx` dependency.
 The final v1.0.0 native CIA has passed direct HOME Menu launch, graphical UI,
 Settings persistence after restart, and clean-exit checks. Retain the broader
 checklist below for future release regression and failure-path testing.
-The v1.1.0 CIA candidate has not yet been built or installed; shared application
-code and successful development `.3dsx` tests do not establish CIA readiness:
+The unpublished v1.1.0 RC1 passed the specific upgrade and runtime checks
+[recorded above](#rc1-package-verification-unpublished). The list below remains
+a general regression checklist, not a statement that every item passed on RC1;
+in particular, sleep/lid behavior remains unverified:
 
 1. Install or update the CIA on current Luma3DS and launch it from HOME Menu.
 2. Confirm the final icon, title, static banner, and chime, then confirm the

@@ -4,9 +4,14 @@ This optional package contains the same LocalSend3DS executable built by the
 top-level Makefile. It is a native HOME Menu application: it does not use
 `hb:ldr`, APT chainloading, or an external 3DSX.
 
-This branch targets **unreleased v1.1.0**. Its five themes have been tested in
-development `.3dsx` builds, but the v1.1.0 CIA candidate has not yet been built,
-installed or tested from HOME Menu. The published v1.0.0 package is separate.
+This branch targets **unreleased v1.1.0**. RC1 passed upgrade installation over
+v1.0.0 on New Nintendo 2DS XL, HOME Menu launch, displayed v1.1.0, existing
+settings preservation, all five themes, theme persistence after restart,
+incoming/outgoing transfers, icon/banner/startup-sound observation and clean
+START exit. Fresh CIA installation and RC1 sleep/lid behavior were not reported.
+The published v1.0.0 package is separate; v1.1.0 is not publicly downloadable.
+See the [scoped RC1 record](../../docs/testing.md#rc1-package-verification-unpublished),
+including the separately tested `.3dsx` candidate.
 
 The normal top-level `make` remains the supported 3DSX build. Build both the
 3DSX and the optional CIA with the `3ds-dev` and `3ds-mbedtls` packages
@@ -25,7 +30,17 @@ The native packaging pipeline has been validated with:
 - [`carstene1ns/3ds-bannertool`](https://github.com/carstene1ns/3ds-bannertool/tree/734d33be79fd3f8c29c6296158f06ac7c5ca9dcb)
   commit `734d33be79fd3f8c29c6296158f06ac7c5ca9dcb`
 - [`3DSGuy/Project_CTR` makerom](https://github.com/3DSGuy/Project_CTR/tree/e8f5f529c54ff9b22a2491a480ffa69206bf7b19/makerom)
-  commit `e8f5f529c54ff9b22a2491a480ffa69206bf7b19`
+  commit `e8f5f529c54ff9b22a2491a480ffa69206bf7b19`, **with the local repair below**.
+
+The unmodified pinned makerom has a tool-version/CIA-index macro collision.
+RC1 uses a locally patched makerom 0.19.0, not an unmodified upstream binary.
+Apply the exact [repair patch and build instructions](patches/README.md) before
+using this revision to package a CIA. No LocalSend3DS build rule applies the
+patch automatically. Ctrtool from the same pinned Project_CTR commit was used
+for inspection.
+
+RC1 was built from `09d8d8bc5980fa7ae90d25831f468666226bc466`; later documentation
+or external-tool patch records do not change that original build revision.
 
 Package identity:
 

@@ -15,7 +15,7 @@ LocalSend3DS is an independent project and is not affiliated with or endorsed
 by the LocalSend maintainers or Nintendo.
 
 The published release is **v1.0.0**. This development branch prepares
-**v1.1.0**, which is unreleased; v1.1.0 binaries are not yet available.
+**v1.1.0**, which is unreleased; v1.1.0 binaries are not yet publicly available.
 
 ## Features
 
@@ -44,7 +44,8 @@ data. LocalSend3DS never installs or launches received software automatically.
 
 ### Homebrew Launcher (`.3dsx`)
 
-Copy `LocalSend3DS.3dsx` to:
+For manual installation, rename the versioned release download (for example,
+`LocalSend3DS-v1.0.0.3dsx`) to `LocalSend3DS.3dsx` and copy it to:
 
 ```text
 sdmc:/3ds/LocalSend3DS/LocalSend3DS.3dsx
@@ -52,6 +53,13 @@ sdmc:/3ds/LocalSend3DS/LocalSend3DS.3dsx
 
 Launch LocalSend3DS from Homebrew Launcher. The application icon and metadata
 are embedded; no sidecar assets are required.
+
+Universal-Updater uses its configured `.3dsx` location and versioned download
+filenames. The [current generated installer](https://github.com/Universal-Team/db/blob/f147add480e81c2d0d29fc98b2414f72c0fdbd89/source/unistore.py#L185-L195)
+does not remove the previous version
+when downloading a new filename, so an older `.3dsx` may remain alongside it.
+Check the displayed app version when choosing a Homebrew Launcher entry; do not
+delete `sdmc:/3ds/LocalSend/`, which contains shared settings and user data.
 
 ### HOME Menu (`.cia`)
 
@@ -110,9 +118,13 @@ preserved. OLED Black is a black appearance for the 3DS's LCD screens; it
 implies no OLED hardware or battery benefit. Yaru palettes are adaptations for
 3DS, not exact Flutter reproductions; see [third-party notices](THIRD_PARTY_NOTICES.md#yaru-inspired-color-palettes).
 
-All five themes passed development `.3dsx` testing on a New Nintendo 2DS XL.
-Final v1.1.0 release-candidate `.3dsx` testing and native CIA installation/HOME
-Menu testing remain pending. See [testing status](docs/testing.md#unreleased-v110-theme-validation).
+All five themes passed detailed development `.3dsx` testing on a New Nintendo
+2DS XL. The unpublished RC1 CIA also passed upgrade from v1.0.0, HOME Menu
+launch, settings preservation, theme selection and restart persistence, incoming
+and outgoing transfers, icon/banner/sound observation, and clean START exit.
+RC1 `.3dsx` testing passed launch, displayed v1.1.0, all five themes, a file
+transfer with Mac, and clean START exit. See the scoped
+[testing record](docs/testing.md#unreleased-v110-theme-validation).
 
 ### Controls
 
@@ -165,7 +177,8 @@ The Homebrew package is needed only for native macOS tests, not at runtime on
 the 3DS.
 
 The optional native CIA build additionally requires compatible `bannertool`
-and `makerom` executables:
+and `makerom` executables. The pinned makerom used for v1.1.0 RC1 requires the
+documented [external-tool repair](packaging/cia/patches/README.md):
 
 ```sh
 make cia BANNERTOOL=/path/to/bannertool MAKEROM=/path/to/makerom
@@ -193,8 +206,9 @@ The v1.0.0 outgoing HTTPS/mTLS hardware tests used the native CIA. Its TLS-enabl
 `.3dsx` release candidate also launches successfully through Homebrew Launcher
 on real hardware. That `.3dsx` result is a launch smoke test; transfer coverage
 was not separately attributed to that v1.0.0 package format. Later five-theme
-development `.3dsx` tests included sending and receiving, but do not establish
-final v1.1.0 package validation or additional peer-platform coverage.
+development builds and the unpublished v1.1.0 RC1 received the separate testing
+described above. RC1 does not establish additional peer platforms, specific
+transport results or independent transfer checksums.
 
 The outgoing HTTPS transfers completed on macOS and Linux, but their destination
 files have not yet received an independent size or SHA-256 comparison. An

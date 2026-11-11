@@ -30,10 +30,18 @@ Implemented and tested through development `.3dsx` builds on New Nintendo 2DS XL
 - theme persistence, cancellation and legacy v1.0.0 settings compatibility;
 - sending/receiving, transfer screens and clean exit with the themed UI.
 
-The version metadata is prepared for v1.1.0. Final release-candidate `.3dsx`
-testing and a locally built v1.1.0 CIA installation/HOME Menu test remain
-pending. Development-build results do not complete those package checks. See
-[testing](testing.md#unreleased-v110-theme-validation).
+The unpublished v1.1.0 RC1 has now passed core package testing on the same
+console: CIA upgrade from v1.0.0, HOME Menu launch, displayed version, existing
+settings preservation, all five themes, theme persistence after restart,
+incoming/outgoing transfers, icon/banner/sound observation and clean START
+exit. RC1 `.3dsx` testing passed Homebrew Launcher launch, displayed v1.1.0,
+five-theme selection, a file transfer with Mac and clean START exit.
+
+Public release preparation is still pending. Fresh CIA installation, the
+standard-path RC1 `.3dsx` launch, RC1 sleep/lid behavior and independent RC1
+transfer checksums have not been reported. Detailed development-build testing
+and narrower RC1 evidence remain separate in the
+[testing record](testing.md#unreleased-v110-theme-validation).
 
 ## Still deferred
 

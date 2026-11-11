@@ -1,0 +1,21 @@
+--- a/makerom/src/version.h
++++ b/makerom/src/version.h
+@@ -2,6 +2,6 @@
+ #define APP_NAME	"CTR MAKEROM"
+ #define BIN_NAME	"makerom"
+ #define VER_MAJOR	0
+-#define VER_MINOR	19
++#define MAKEROM_TOOL_VERSION_MINOR	19
+ #define VER_PATCH	0
+ #define AUTHORS		"3DSGuy"
+--- a/makerom/src/user_settings.c
++++ b/makerom/src/user_settings.c
+@@ -933,7 +933,7 @@
+ 
+ void DisplayBanner(void)
+ {
+-	printf("%s v%d.%d.%d (C) %s\n", APP_NAME, VER_MAJOR, VER_MINOR, VER_PATCH, AUTHORS);
++	printf("%s v%d.%d.%d (C) %s\n", APP_NAME, VER_MAJOR, MAKEROM_TOOL_VERSION_MINOR, VER_PATCH, AUTHORS);
+ 	printf("Built: %s %s\n\n", __TIME__, __DATE__);
+ }
+ 
